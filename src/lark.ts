@@ -25,6 +25,10 @@ export interface FormattedMessage {
   user: string;
   text: string;
   timestamp: string;
+  isSharedChannel?: boolean;
+  workspaceName?: string;
+  connectedTeams?: string[];
+  isMention?: boolean;
 }
 
 export async function sendToLark(message: FormattedMessage): Promise<void> {
@@ -34,23 +38,55 @@ export async function sendToLark(message: FormattedMessage): Promise<void> {
     throw new Error('LARK_WEBHOOK_URL is not configured');
   }
 
+  // タイトルを構築
+  const titleParts: string[] = [];
+  if (message.isMention) {
+    titleParts.push('📣');
+  } else {
+    titleParts.push('📨');
+  }
+  titleParts.push('Slack通知');
+  if (message.isSharedChannel) {
+    titleParts.push('(共有チャンネル)');
+  }
+  titleParts.push(`- #${message.channel}`);
+
+  // コンテンツを構築
+  const contentRows: Array<Array<LarkPostContent>> = [];
+
+  // Workspace情報（複数Workspace対応時）
+  if (message.workspaceName) {
+    contentRows.push([
+      { tag: 'text', text: `🏢 Workspace: ${message.workspaceName}` },
+    ]);
+  }
+
+  contentRows.push([
+    { tag: 'text', text: `👤 送信者: ${message.user}` },
+  ]);
+
+  contentRows.push([
+    { tag: 'text', text: `💬 メッセージ: ${message.text}` },
+  ]);
+
+  contentRows.push([
+    { tag: 'text', text: `🕐 時刻: ${message.timestamp}` },
+  ]);
+
+  // 共有チャンネルの接続先チーム情報
+  if (message.connectedTeams && message.connectedTeams.length > 0) {
+    contentRows.push([
+      { tag: 'text', text: `🔗 接続チーム: ${message.connectedTeams.join(', ')}` },
+    ]);
+  }
+
   const larkMessage: LarkMessage = {
     msg_type: 'post',
     content: {
       post: {
         ja_jp: {
-          title: `📨 Slack通知 - #${message.channel}`,
-          content: [
-            [
-              { tag: 'text', text: `👤 送信者: ${message.user}` },
-            ],
-            [
-              { tag: 'text', text: `💬 メッセージ: ${message.text}` },
-            ],
-            [
-              { tag: 'text', text: `🕐 時刻: ${message.timestamp}` },
-            ],
-          ],
+          title: titleParts.join(' '),
+          content: contentRows,
         },
       },
     },
