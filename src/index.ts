@@ -1,43 +1,44 @@
 import 'dotenv/config';
-import { App } from '@slack/bolt';
-import { sendToLark } from './lark.js';
-import { formatSlackMessage } from './formatter.js';
+import { loadConfig, validateConfig } from './config.js';
+import { MultiWorkspaceApp } from './multi-workspace-app.js';
 
-const app = new App({
-  token: process.env.SLACK_BOT_TOKEN,
-  signingSecret: process.env.SLACK_SIGNING_SECRET,
-  socketMode: true,
-  appToken: process.env.SLACK_APP_TOKEN,
-});
+async function main(): Promise<void> {
+  console.log('🚀 Starting Slack to Lark Notifier...');
 
-// メッセージイベントをリッスン
-app.message(async ({ message, say }) => {
-  if (message.subtype === undefined || message.subtype === 'bot_message') {
-    const formattedMessage = formatSlackMessage(message);
+  // 設定を読み込み
+  const config = loadConfig();
 
-    try {
-      await sendToLark(formattedMessage);
-      console.log('Message forwarded to Lark successfully');
-    } catch (error) {
-      console.error('Failed to forward message to Lark:', error);
-    }
+  // 設定を検証
+  const errors = validateConfig(config);
+  if (errors.length > 0) {
+    console.error('❌ 設定エラー:');
+    errors.forEach((err) => console.error(`  - ${err}`));
+    process.exit(1);
   }
+
+  console.log(`📋 設定読み込み完了:`);
+  console.log(`   - Workspace数: ${config.workspaces.length}`);
+  console.log(`   - 共有チャンネル監視: ${config.channelFilter.includeSharedChannels ? '有効' : '無効'}`);
+
+  // Multi-Workspace Appを初期化
+  const app = new MultiWorkspaceApp(config);
+  await app.initialize();
+
+  // シャットダウンハンドラ
+  const shutdown = async (signal: string): Promise<void> => {
+    console.log(`\n📴 ${signal} received. Shutting down...`);
+    await app.stop();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+  // 起動
+  await app.start();
+}
+
+main().catch((error) => {
+  console.error('Fatal error:', error);
+  process.exit(1);
 });
-
-// メンションイベントをリッスン
-app.event('app_mention', async ({ event }) => {
-  const formattedMessage = formatSlackMessage(event);
-
-  try {
-    await sendToLark(formattedMessage);
-    console.log('Mention forwarded to Lark successfully');
-  } catch (error) {
-    console.error('Failed to forward mention to Lark:', error);
-  }
-});
-
-(async () => {
-  const port = process.env.PORT || 3000;
-  await app.start(port);
-  console.log(`⚡️ Slack to Lark Notifier is running on port ${port}`);
-})();
