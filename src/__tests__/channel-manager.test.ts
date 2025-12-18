@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ChannelManager } from '../channel-manager.js';
 import type { ChannelFilter } from '../config.js';
 
