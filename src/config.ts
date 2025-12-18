@@ -13,11 +13,23 @@ export interface ChannelFilter {
   excludeChannelIds?: string[];
 }
 
+export interface LarkAppConfig {
+  appId: string;
+  appSecret: string;
+  verificationToken: string;
+  encryptKey?: string;
+  defaultSlackChannel?: string;
+  channelMapping?: Record<string, string>;
+  enabled: boolean;
+}
+
 export interface AppConfig {
   workspaces: WorkspaceConfig[];
   channelFilter: ChannelFilter;
   larkWebhookUrl: string;
+  larkApp: LarkAppConfig;
   port: number;
+  larkReceiverPort: number;
 }
 
 export function loadConfig(): AppConfig {
@@ -56,11 +68,36 @@ export function loadConfig(): AppConfig {
     excludeChannelIds: process.env.EXCLUDE_CHANNEL_IDS?.split(',').filter(Boolean),
   };
 
+  // Larkチャンネルマッピング（LARK_CHANNEL_MAP=larkChatId1:slackChannel1,larkChatId2:slackChannel2）
+  const channelMapping: Record<string, string> = {};
+  const mappingStr = process.env.LARK_CHANNEL_MAP;
+  if (mappingStr) {
+    mappingStr.split(',').forEach((pair) => {
+      const [larkId, slackChannel] = pair.split(':');
+      if (larkId && slackChannel) {
+        channelMapping[larkId.trim()] = slackChannel.trim();
+      }
+    });
+  }
+
+  // Lark App設定（双方向通信用）
+  const larkApp: LarkAppConfig = {
+    appId: process.env.LARK_APP_ID || '',
+    appSecret: process.env.LARK_APP_SECRET || '',
+    verificationToken: process.env.LARK_VERIFICATION_TOKEN || '',
+    encryptKey: process.env.LARK_ENCRYPT_KEY,
+    defaultSlackChannel: process.env.LARK_DEFAULT_SLACK_CHANNEL,
+    channelMapping: Object.keys(channelMapping).length > 0 ? channelMapping : undefined,
+    enabled: process.env.LARK_RECEIVER_ENABLED === 'true',
+  };
+
   return {
     workspaces,
     channelFilter,
     larkWebhookUrl: process.env.LARK_WEBHOOK_URL || '',
+    larkApp,
     port: parseInt(process.env.PORT || '3000', 10),
+    larkReceiverPort: parseInt(process.env.LARK_RECEIVER_PORT || '3001', 10),
   };
 }
 
@@ -85,6 +122,16 @@ export function validateConfig(config: AppConfig): string[] {
 
   if (!config.larkWebhookUrl) {
     errors.push('LARK_WEBHOOK_URL が未設定です');
+  }
+
+  // Lark Receiver有効時のバリデーション
+  if (config.larkApp.enabled) {
+    if (!config.larkApp.appId) {
+      errors.push('LARK_APP_ID が未設定です（Lark Receiver有効時は必須）');
+    }
+    if (!config.larkApp.verificationToken) {
+      errors.push('LARK_VERIFICATION_TOKEN が未設定です（Lark Receiver有効時は必須）');
+    }
   }
 
   return errors;
