@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build output (will be built in container)
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Documentation (not needed in container)
+docs/
+
+# Temporary files
+tmp/
+temp/
+
+# CI/CD
+.github/
+.claude/
