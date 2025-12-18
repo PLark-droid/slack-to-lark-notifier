@@ -71,13 +71,22 @@ describe('loadConfig', () => {
   });
 });
 
+const defaultLarkApp = {
+  appId: '',
+  appSecret: '',
+  verificationToken: '',
+  enabled: false,
+};
+
 describe('validateConfig', () => {
   it('should return error when no workspaces configured', () => {
     const config = {
       workspaces: [],
       channelFilter: { includeSharedChannels: true },
       larkWebhookUrl: 'https://lark.example.com/webhook',
+      larkApp: defaultLarkApp,
       port: 3000,
+      larkReceiverPort: 3001,
     };
 
     const errors = validateConfig(config);
@@ -96,7 +105,9 @@ describe('validateConfig', () => {
       }],
       channelFilter: { includeSharedChannels: true },
       larkWebhookUrl: '',
+      larkApp: defaultLarkApp,
       port: 3000,
+      larkReceiverPort: 3001,
     };
 
     const errors = validateConfig(config);
@@ -115,11 +126,40 @@ describe('validateConfig', () => {
       }],
       channelFilter: { includeSharedChannels: true },
       larkWebhookUrl: 'https://lark.example.com/webhook',
+      larkApp: defaultLarkApp,
       port: 3000,
+      larkReceiverPort: 3001,
     };
 
     const errors = validateConfig(config);
 
     expect(errors).toHaveLength(0);
+  });
+
+  it('should return error when lark receiver enabled but no verification token', () => {
+    const config = {
+      workspaces: [{
+        id: 'test',
+        name: 'Test',
+        botToken: 'xoxb-test',
+        signingSecret: 'secret',
+        appToken: 'xapp',
+      }],
+      channelFilter: { includeSharedChannels: true },
+      larkWebhookUrl: 'https://lark.example.com/webhook',
+      larkApp: {
+        appId: '',
+        appSecret: '',
+        verificationToken: '',
+        enabled: true,
+      },
+      port: 3000,
+      larkReceiverPort: 3001,
+    };
+
+    const errors = validateConfig(config);
+
+    expect(errors).toContain('LARK_APP_ID が未設定です（Lark Receiver有効時は必須）');
+    expect(errors).toContain('LARK_VERIFICATION_TOKEN が未設定です（Lark Receiver有効時は必須）');
   });
 });
