@@ -223,15 +223,32 @@ export default function Home() {
                 </ul>
               </StepCard>
 
-              {/* Step 4: Configuration */}
+              {/* Step 4: Vercel Deploy */}
               <StepCard
                 number={4}
-                title="設定を入力"
+                title="Vercelにデプロイ"
+                time="5分"
+                href="/guide/vercel-deploy"
+              >
+                <p className="text-gray-600 mb-3">
+                  サーバーレスで完結。ngrok不要でVercelだけで動作します。
+                </p>
+                <ul className="text-sm text-gray-500 space-y-1">
+                  <li>• Vercelにデプロイ</li>
+                  <li>• 環境変数を設定</li>
+                  <li>• Events API URLを設定</li>
+                </ul>
+              </StepCard>
+
+              {/* Step 5: Configuration */}
+              <StepCard
+                number={5}
+                title="動作確認"
                 time="2分"
                 href="/setup?mode=advanced"
               >
                 <p className="text-gray-600 mb-3">
-                  取得した情報を設定画面に入力して完了です。
+                  メッセージを送信して双方向の転送を確認します。
                 </p>
               </StepCard>
             </div>
@@ -267,6 +284,11 @@ export default function Home() {
               Slack Appはアプリケーション全体のことで、Botはその中の一機能です。
               Botはチャンネルに招待でき、メッセージの送受信を行います。
               AppをインストールするとBotが使えるようになります。
+            </FaqItem>
+            <FaqItem question="サーバーは必要ですか？">
+              Vercelにデプロイすれば自前のサーバーは不要です。
+              無料プランでも十分動作します。ngrokなどのトンネリングツールも不要で、
+              Vercel一本で完結する構成になっています。
             </FaqItem>
           </div>
         </section>

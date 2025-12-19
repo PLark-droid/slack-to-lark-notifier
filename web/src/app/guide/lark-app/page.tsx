@@ -163,9 +163,12 @@ export default function LarkAppGuide() {
               <span className="font-mono text-purple-600">4.2</span>
               <div>
                 <strong>&quot;Request URL&quot;</strong> に以下を入力:
-                <code className="block mt-2 bg-gray-100 px-3 py-2 rounded text-sm break-all">
-                  https://あなたのサーバーURL/lark/events
+                <code className="block mt-2 bg-gray-800 text-white px-3 py-2 rounded text-sm break-all">
+                  https://あなたのアプリ.vercel.app/api/lark/webhook
                 </code>
+                <p className="text-sm text-gray-500 mt-2">
+                  例: https://slack-to-lark-notifier.vercel.app/api/lark/webhook
+                </p>
               </div>
             </li>
             <li className="flex gap-3">
@@ -180,8 +183,8 @@ export default function LarkAppGuide() {
           </ol>
           <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800">
-              💡 ローカル開発時は ngrok などのトンネリングツールを使用して
-              一時的な公開URLを取得できます。
+              💡 Vercelにデプロイ済みの場合は、そのURLを使用してください。
+              環境変数に <code className="bg-blue-100 px-1 rounded">LARK_VERIFICATION_TOKEN</code> の設定が必要です。
             </p>
           </div>
         </section>
@@ -278,10 +281,10 @@ export default function LarkAppGuide() {
             ← 戻る: Lark Webhook設定
           </Link>
           <Link
-            href="/setup?mode=advanced"
+            href="/guide/vercel-deploy"
             className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
           >
-            次へ: 設定を入力 →
+            次へ: Vercelにデプロイ →
           </Link>
         </div>
       </main>
