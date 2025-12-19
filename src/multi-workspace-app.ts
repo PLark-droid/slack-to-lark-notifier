@@ -1,4 +1,5 @@
-import { App } from '@slack/bolt';
+import pkg from '@slack/bolt';
+const { App } = pkg;
 import type { WorkspaceConfig, AppConfig } from './config.js';
 import { ChannelManager } from './channel-manager.js';
 import { sendToLark } from './lark.js';
