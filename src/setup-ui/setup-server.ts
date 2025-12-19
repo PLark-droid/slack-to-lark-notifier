@@ -128,6 +128,12 @@ export function createSetupRouter(): Router {
         return;
       }
 
+      // URL形式の検証
+      if (!webhookUrl.includes('larksuite.com') && !webhookUrl.includes('feishu.cn')) {
+        res.json({ success: false, error: 'Webhook URLは有効なLark/FeishuのURLである必要があります' });
+        return;
+      }
+
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -137,14 +143,22 @@ export function createSetupRouter(): Router {
         }),
       });
 
-      const data = (await response.json()) as { code?: number; StatusCode?: number };
+      // レスポンスのContent-Typeを確認
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        res.json({ success: false, error: `Lark Webhook エラー: 無効なレスポンス (${response.status}): ${text.slice(0, 200)}` });
+        return;
+      }
+
+      const data = (await response.json()) as { code?: number; StatusCode?: number; msg?: string };
       if (data.code === 0 || data.StatusCode === 0) {
         res.json({ success: true, message: 'Lark Webhook テスト成功！メッセージを確認してください' });
       } else {
-        res.json({ success: false, error: `Lark Webhook エラー: ${JSON.stringify(data)}` });
+        res.json({ success: false, error: `Lark Webhook エラー: ${data.msg || JSON.stringify(data)}` });
       }
     } catch (error) {
-      res.status(500).json({ success: false, error: String(error) });
+      res.status(500).json({ success: false, error: `接続エラー: ${String(error)}` });
     }
   });
 
