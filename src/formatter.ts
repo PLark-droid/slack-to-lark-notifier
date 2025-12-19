@@ -5,6 +5,7 @@ interface SlackMessage {
   user?: string;
   text?: string;
   ts?: string;
+  messageLink?: string;
   [key: string]: unknown;
 }
 
@@ -20,5 +21,6 @@ export function formatSlackMessage(message: SlackMessage): FormattedMessage {
     user: message.user || 'unknown',
     text: message.text || '',
     timestamp,
+    messageLink: message.messageLink,
   };
 }

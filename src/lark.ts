@@ -29,10 +29,11 @@ export interface FormattedMessage {
   workspaceName?: string;
   connectedTeams?: string[];
   isMention?: boolean;
+  messageLink?: string;
 }
 
-export async function sendToLark(message: FormattedMessage): Promise<void> {
-  const webhookUrl = process.env.LARK_WEBHOOK_URL;
+export async function sendToLark(message: FormattedMessage, webhookUrlOverride?: string): Promise<void> {
+  const webhookUrl = webhookUrlOverride || process.env.LARK_WEBHOOK_URL;
 
   if (!webhookUrl) {
     throw new Error('LARK_WEBHOOK_URL is not configured');
@@ -72,6 +73,14 @@ export async function sendToLark(message: FormattedMessage): Promise<void> {
   contentRows.push([
     { tag: 'text', text: `🕐 時刻: ${message.timestamp}` },
   ]);
+
+  // Slackメッセージへのリンク
+  if (message.messageLink) {
+    contentRows.push([
+      { tag: 'text', text: '🔗 ' },
+      { tag: 'a', text: 'Slackで開く', href: message.messageLink },
+    ]);
+  }
 
   // 共有チャンネルの接続先チーム情報
   if (message.connectedTeams && message.connectedTeams.length > 0) {

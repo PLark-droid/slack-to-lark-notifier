@@ -23,11 +23,19 @@ export interface LarkAppConfig {
   enabled: boolean;
 }
 
+export interface SlackConnectPollerConfig {
+  enabled: boolean;
+  userToken: string;
+  channelIds: string[];
+  pollingInterval: number;
+}
+
 export interface AppConfig {
   workspaces: WorkspaceConfig[];
   channelFilter: ChannelFilter;
   larkWebhookUrl: string;
   larkApp: LarkAppConfig;
+  slackConnectPoller: SlackConnectPollerConfig;
   port: number;
   larkReceiverPort: number;
 }
@@ -91,11 +99,20 @@ export function loadConfig(): AppConfig {
     enabled: process.env.LARK_RECEIVER_ENABLED === 'true',
   };
 
+  // Slack Connect Poller設定（User Tokenでポーリング）
+  const slackConnectPoller: SlackConnectPollerConfig = {
+    enabled: !!process.env.SLACK_USER_TOKEN,
+    userToken: process.env.SLACK_USER_TOKEN || '',
+    channelIds: process.env.SLACK_CONNECT_CHANNEL_IDS?.split(',').filter(Boolean) || [],
+    pollingInterval: parseInt(process.env.SLACK_CONNECT_POLLING_INTERVAL || '5000', 10),
+  };
+
   return {
     workspaces,
     channelFilter,
     larkWebhookUrl: process.env.LARK_WEBHOOK_URL || '',
     larkApp,
+    slackConnectPoller,
     port: parseInt(process.env.PORT || '3000', 10),
     larkReceiverPort: parseInt(process.env.LARK_RECEIVER_PORT || '3001', 10),
   };

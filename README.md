@@ -49,6 +49,49 @@ cp .env.example .env
 1. Lark管理画面でIncoming Webhookボットを作成
 2. Webhook URLを取得して環境変数に設定
 
+### 5. Slack Connectチャンネル監視（オプション）
+
+Slack Connectの共有チャンネルを監視するには、User Tokenを使用したポーリング方式を利用します。
+
+```bash
+# .envに追加
+SLACK_USER_TOKEN=xoxp-...  # User Token
+SLACK_CONNECT_CHANNEL_IDS=C123,C456  # 監視するチャンネルID（カンマ区切り）
+SLACK_CONNECT_POLLING_INTERVAL=5000  # ポーリング間隔（ミリ秒）
+```
+
+**User Tokenの取得方法:**
+1. Slack Appの設定で OAuth & Permissions を開く
+2. User Token Scopes に以下を追加:
+   - `channels:history`
+   - `channels:read`
+   - `users:read`
+3. ワークスペースに再インストールしてUser OAuth Tokenを取得
+
+### 6. Lark→Slack双方向通信（オプション）
+
+LarkからSlackへメッセージを送信するには、Lark Appを作成します。
+
+```bash
+# .envに追加
+LARK_RECEIVER_ENABLED=true
+LARK_APP_ID=cli_xxxxx
+LARK_APP_SECRET=xxxxx
+LARK_VERIFICATION_TOKEN=xxxxx
+LARK_DEFAULT_SLACK_CHANNEL=general  # デフォルト送信先
+
+# チャンネルマッピング（オプション）
+LARK_CHANNEL_MAP=oc_xxxxx:general,oc_yyyyy:random
+```
+
+**Lark Appの設定:**
+1. [Lark Developer Console](https://open.larksuite.com/app)でアプリを作成
+2. Event Subscription URLを設定: `https://your-domain.com:3001/lark/events`
+3. `im.message.receive_v1` イベントを購読
+
+**使用方法:**
+- Larkで `/slack #channel メッセージ` と送信すると、指定したSlackチャンネルに転送されます
+
 ## 開発
 
 ```bash

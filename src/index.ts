@@ -3,6 +3,7 @@ import { loadConfig, validateConfig } from './config.js';
 import { MultiWorkspaceApp } from './multi-workspace-app.js';
 import { LarkReceiver } from './lark-receiver.js';
 import { SlackSender } from './slack-sender.js';
+import { SlackConnectPoller } from './slack-connect-poller.js';
 
 async function main(): Promise<void> {
   console.log('🚀 Starting Slack to Lark Notifier...');
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
   console.log(`   - Workspace数: ${config.workspaces.length}`);
   console.log(`   - 共有チャンネル監視: ${config.channelFilter.includeSharedChannels ? '有効' : '無効'}`);
   console.log(`   - Lark→Slack双方向: ${config.larkApp.enabled ? '有効' : '無効'}`);
+  console.log(`   - Slack Connectポーリング: ${config.slackConnectPoller.enabled ? '有効' : '無効'}`);
 
   // Multi-Workspace Appを初期化
   const app = new MultiWorkspaceApp(config);
@@ -46,10 +48,24 @@ async function main(): Promise<void> {
     );
   }
 
+  // Slack Connect Poller初期化（有効な場合）
+  let slackConnectPoller: SlackConnectPoller | undefined;
+  if (config.slackConnectPoller.enabled && config.slackConnectPoller.channelIds.length > 0) {
+    slackConnectPoller = new SlackConnectPoller({
+      userToken: config.slackConnectPoller.userToken,
+      larkWebhookUrl: config.larkWebhookUrl,
+      channelIds: config.slackConnectPoller.channelIds,
+      pollingInterval: config.slackConnectPoller.pollingInterval,
+    });
+  }
+
   // シャットダウンハンドラ
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`\n📴 ${signal} received. Shutting down...`);
     await app.stop();
+    if (slackConnectPoller) {
+      await slackConnectPoller.stop();
+    }
     process.exit(0);
   };
 
@@ -62,6 +78,11 @@ async function main(): Promise<void> {
   // Lark Receiver起動（有効な場合）
   if (larkReceiver) {
     await larkReceiver.start(config.larkReceiverPort);
+  }
+
+  // Slack Connect Poller起動（有効な場合）
+  if (slackConnectPoller) {
+    await slackConnectPoller.start();
   }
 }
 
