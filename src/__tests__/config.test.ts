@@ -78,6 +78,13 @@ const defaultLarkApp = {
   enabled: false,
 };
 
+const defaultSlackConnectPoller = {
+  enabled: false,
+  userToken: '',
+  channelIds: [],
+  pollingInterval: 5000,
+};
+
 describe('validateConfig', () => {
   it('should return error when no workspaces configured', () => {
     const config = {
@@ -85,6 +92,7 @@ describe('validateConfig', () => {
       channelFilter: { includeSharedChannels: true },
       larkWebhookUrl: 'https://lark.example.com/webhook',
       larkApp: defaultLarkApp,
+      slackConnectPoller: defaultSlackConnectPoller,
       port: 3000,
       larkReceiverPort: 3001,
     };
@@ -106,6 +114,7 @@ describe('validateConfig', () => {
       channelFilter: { includeSharedChannels: true },
       larkWebhookUrl: '',
       larkApp: defaultLarkApp,
+      slackConnectPoller: defaultSlackConnectPoller,
       port: 3000,
       larkReceiverPort: 3001,
     };
@@ -127,6 +136,7 @@ describe('validateConfig', () => {
       channelFilter: { includeSharedChannels: true },
       larkWebhookUrl: 'https://lark.example.com/webhook',
       larkApp: defaultLarkApp,
+      slackConnectPoller: defaultSlackConnectPoller,
       port: 3000,
       larkReceiverPort: 3001,
     };
@@ -153,6 +163,7 @@ describe('validateConfig', () => {
         verificationToken: '',
         enabled: true,
       },
+      slackConnectPoller: defaultSlackConnectPoller,
       port: 3000,
       larkReceiverPort: 3001,
     };

@@ -1,5 +1,6 @@
 import pkg from '@slack/bolt';
 const { App } = pkg;
+type AppInstance = InstanceType<typeof App>;
 import type { WorkspaceConfig, AppConfig } from './config.js';
 import { ChannelManager } from './channel-manager.js';
 import { sendToLark } from './lark.js';
@@ -7,7 +8,7 @@ import { formatSlackMessage } from './formatter.js';
 
 export interface WorkspaceApp {
   config: WorkspaceConfig;
-  app: App;
+  app: AppInstance;
   channelManager: ChannelManager;
 }
 
@@ -53,7 +54,7 @@ export class MultiWorkspaceApp {
   }
 
   private setupMessageHandler(
-    app: App,
+    app: AppInstance,
     wsConfig: WorkspaceConfig,
     channelManager: ChannelManager
   ): void {
@@ -109,7 +110,7 @@ export class MultiWorkspaceApp {
   }
 
   private setupMentionHandler(
-    app: App,
+    app: AppInstance,
     wsConfig: WorkspaceConfig,
     channelManager: ChannelManager
   ): void {
@@ -145,7 +146,7 @@ export class MultiWorkspaceApp {
   }
 
   private setupChannelIdChangedHandler(
-    app: App,
+    app: AppInstance,
     wsConfig: WorkspaceConfig,
     channelManager: ChannelManager
   ): void {
