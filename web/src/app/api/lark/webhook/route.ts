@@ -1,4 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { kv } from "@vercel/kv";
+
+// User mapping from KV store
+interface UserMapping {
+  slack_user_id: string;
+  slack_user_token: string;
+  slack_team_id: string;
+  slack_user_name?: string;
+  lark_open_id: string;
+  created_at: string;
+  updated_at: string;
+}
 
 // Lark Event Types
 interface LarkEvent {
@@ -323,14 +335,32 @@ async function resolveChannelId(channelRef: string): Promise<string | null> {
   return null;
 }
 
-// Send message to Slack
+// Get user mapping from KV store
+async function getUserMapping(larkOpenId: string): Promise<UserMapping | null> {
+  try {
+    const mapping = await kv.get<UserMapping>(`user:lark:${larkOpenId}`);
+    if (mapping) {
+      console.log(`Found user mapping for Lark ${larkOpenId} -> Slack ${mapping.slack_user_id}`);
+      return mapping;
+    }
+  } catch (error) {
+    console.error("Failed to get user mapping from KV:", error);
+  }
+  return null;
+}
+
+// Send message to Slack (supports both Bot token and User token)
 async function sendToSlack(
   message: string,
   channelId: string,
-  threadTs?: string | null
+  threadTs?: string | null,
+  userToken?: string | null
 ): Promise<SlackPostResponse> {
-  if (!SLACK_BOT_TOKEN) {
-    throw new Error("SLACK_BOT_TOKEN not configured");
+  // Use user token if available, otherwise fall back to bot token
+  const token = userToken || SLACK_BOT_TOKEN;
+
+  if (!token) {
+    throw new Error("No Slack token available");
   }
 
   const payload: {
@@ -346,10 +376,12 @@ async function sendToSlack(
     payload.thread_ts = threadTs;
   }
 
+  console.log(`Sending to Slack with ${userToken ? "USER token" : "BOT token"}`);
+
   const response = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
@@ -412,9 +444,13 @@ export async function POST(request: NextRequest) {
           if (rawContent) {
             // Get sender info
             const senderId = body.event.sender?.sender_id?.open_id;
-            const senderName = senderId
-              ? await getLarkUserName(senderId)
-              : "Unknown";
+
+            // Check if user has linked their Slack account
+            const userMapping = senderId ? await getUserMapping(senderId) : null;
+
+            // Get sender name (for fallback mode)
+            const senderName = userMapping?.slack_user_name
+              || (senderId ? await getLarkUserName(senderId) : "Unknown");
 
             // Parse message for channel targeting
             const parsed = parseMessage(rawContent);
@@ -443,20 +479,31 @@ export async function POST(request: NextRequest) {
               );
             }
 
-            // Convert @mentions and format message for Slack with sender name
+            // Convert @mentions
             const convertedMessage = await convertMentionsToSlack(parsed.message);
-            const slackMessage = `[Lark - ${senderName}] ${convertedMessage}`;
+
+            // Determine message format based on whether user has linked account
+            // If linked: send as the user directly (no prefix)
+            // If not linked: send via bot with [Lark - name] prefix
+            const slackMessage = userMapping
+              ? convertedMessage
+              : `[Lark - ${senderName}] ${convertedMessage}`;
+
+            // Use user token if available
+            const userToken = userMapping?.slack_user_token || null;
 
             try {
               const result = await sendToSlack(
                 slackMessage,
                 targetChannelId,
-                parsed.threadTs
+                parsed.threadTs,
+                userToken
               );
 
               if (result.ok) {
                 const replyType = parsed.threadTs ? "thread reply" : "message";
-                console.log(`${replyType} sent to Slack channel ${targetChannelId}`);
+                const tokenType = userMapping ? "as USER" : "via BOT";
+                console.log(`${replyType} sent to Slack channel ${targetChannelId} (${tokenType})`);
                 return NextResponse.json({ success: true, ts: result.ts });
               } else {
                 console.error("Slack API error:", result.error);
