@@ -28,7 +28,7 @@ Vercelダッシュボードで以下の環境変数を設定：
 | `SLACK_SIGNING_SECRET` | リクエスト署名検証用 |
 | `SLACK_CHANNEL_ID` | 転送先チャンネルID |
 | `LARK_WEBHOOK_URL` | Lark Webhook URL |
-| `LARK_VERIFICATION_TOKEN` | 双方向通信時のみ必要 |
+| `LARK_APP_SECRET` | 双方向通信時のみ必要 |
 
 ### 3. Slack/Larkを設定
 

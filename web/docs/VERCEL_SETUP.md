@@ -42,7 +42,7 @@
 | `SLACK_SIGNING_SECRET` | Slack App > Basic Information > Signing Secret | `abc123def456...` |
 | `SLACK_CHANNEL_ID` | Slackチャンネル詳細の一番下 | `C0123456789` |
 | `LARK_WEBHOOK_URL` | Larkグループ > ボット > Webhook URL | `https://open.larksuite.com/open-apis/bot/v2/hook/...` |
-| `LARK_VERIFICATION_TOKEN` | Lark Developer Console > Credentials | `xxxxx` |
+| `LARK_APP_SECRET` | Lark Developer Console > Credentials > App Secret | `xxxxx` |
 
 ### 1.3 環境変数の追加手順（各変数ごとに実行）
 
@@ -122,11 +122,11 @@ Lark → Slack の転送を設定します。
 1. [open.larksuite.com/app](https://open.larksuite.com/app) にアクセス
 2. 作成したアプリをクリック（なければ新規作成）
 
-### 3.2 Verification Tokenを取得
+### 3.2 App Secretを取得
 
 1. **Credentials & Basic Info** をクリック
-2. **Verification Token** をコピー
-3. Vercelの環境変数 `LARK_VERIFICATION_TOKEN` に設定
+2. **App Secret** の目のアイコンをクリックして表示
+3. コピーしてVercelの環境変数 `LARK_APP_SECRET` に設定
 4. Vercelを再デプロイ
 
 ### 3.3 Event Subscriptionsを設定
@@ -225,7 +225,7 @@ https://slack-to-lark-notifier.vercel.app/api/lark/webhook
 | `SLACK_SIGNING_SECRET` | ✅ | リクエスト署名検証用 |
 | `SLACK_CHANNEL_ID` | ✅ | 転送先SlackチャンネルID (C...) |
 | `LARK_WEBHOOK_URL` | ✅ | Lark Webhook URL |
-| `LARK_VERIFICATION_TOKEN` | 双方向時 | Larkリクエスト検証用 |
+| `LARK_APP_SECRET` | 双方向時 | Lark App Secret（Credentials画面から取得） |
 
 ---
 
