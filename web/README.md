@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Slack to Lark Notifier
 
-## Getting Started
+SlackのメッセージをLarkに自動転送するWebアプリケーション。Vercelで完結するサーバーレス構成。
 
-First, run the development server:
+## 機能
+
+- **Slack → Lark**: Slackチャンネルのメッセージを自動的にLarkグループに転送
+- **Lark → Slack**: LarkからSlackへの返信（双方向通信）
+- **サーバーレス**: Vercelのみで動作、ngrok不要
+
+## デモ
+
+https://slack-to-lark-notifier.vercel.app/
+
+## クイックスタート
+
+### 1. デプロイ
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/PLark-droid/slack-to-lark-notifier)
+
+### 2. 環境変数を設定
+
+Vercelダッシュボードで以下の環境変数を設定：
+
+| 変数名 | 説明 |
+|--------|------|
+| `SLACK_BOT_TOKEN` | Bot User OAuth Token (xoxb-...) |
+| `SLACK_SIGNING_SECRET` | リクエスト署名検証用 |
+| `SLACK_CHANNEL_ID` | 転送先チャンネルID |
+| `LARK_WEBHOOK_URL` | Lark Webhook URL |
+| `LARK_VERIFICATION_TOKEN` | 双方向通信時のみ必要 |
+
+### 3. Slack/Larkを設定
+
+詳細は [docs/VERCEL_SETUP.md](docs/VERCEL_SETUP.md) を参照。
+
+## API エンドポイント
+
+| エンドポイント | 説明 |
+|---------------|------|
+| `/api/slack/events` | Slack Events API受信 |
+| `/api/lark/webhook` | Lark Events受信 |
+
+## ローカル開発
 
 ```bash
+# 依存関係インストール
+npm install
+
+# 開発サーバー起動
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# ビルド
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## ドキュメント
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- [Vercelデプロイ完全ガイド](docs/VERCEL_SETUP.md)
+- [環境変数サンプル](.env.example)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 技術スタック
 
-## Learn More
+- Next.js 16
+- TypeScript
+- Tailwind CSS
+- Vercel Serverless Functions
 
-To learn more about Next.js, take a look at the following resources:
+## ライセンス
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
