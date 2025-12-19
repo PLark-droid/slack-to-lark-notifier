@@ -396,15 +396,20 @@ export default function SlackAppGuide() {
                         <strong>Add OAuth Redirect URLs</strong>
                         <span className="text-red-600 font-medium"> - 設定が必要</span>
                         <div className="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
-                          <p className="text-gray-700 text-xs mb-2">Socket Mode使用でも最低1つ必要です:</p>
+                          <p className="text-gray-700 text-xs mb-2">お客様にインストールしてもらうため、Redirect URLを設定します:</p>
                           <ol className="text-xs text-gray-600 space-y-1">
                             <li>1. 「Add OAuth Redirect URLs」をクリック</li>
                             <li>2. 「OAuth & Permissions」ページが開く</li>
                             <li>3. 「Redirect URLs」セクションで「Add New Redirect URL」をクリック</li>
-                            <li>4. <code className="bg-gray-200 px-1 rounded">https://localhost</code> を入力して「Add」</li>
+                            <li>4. 以下のURLを入力して「Add」:</li>
+                          </ol>
+                          <code className="block bg-gray-800 text-white px-2 py-1 rounded text-xs mt-2 break-all">
+                            https://slack-to-lark-notifier.vercel.app/oauth/callback
+                          </code>
+                          <ol className="text-xs text-gray-600 space-y-1 mt-2" start={5}>
                             <li>5. 「Save URLs」をクリック</li>
                           </ol>
-                          <p className="text-gray-500 text-xs mt-2">※ 実際にはこのURLは使用されません（Socket Mode使用のため）</p>
+                          <p className="text-green-600 text-xs mt-2">✓ お客様がインストール後、成功ページが表示されます</p>
                         </div>
                       </div>
                     </li>
