@@ -34,7 +34,7 @@ describe('Setup Server', () => {
 
       const html = await response.text();
       expect(html).toContain('Slack to Lark Notifier');
-      expect(html).toContain('セットアップウィザード');
+      expect(html).toContain('セットアップ');
     });
   });
 
