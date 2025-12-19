@@ -45,10 +45,17 @@ interface SlackPostResponse {
   ts?: string;
 }
 
+// Parsed message with channel targeting
+interface ParsedMessage {
+  channelId: string | null;
+  threadTs: string | null;
+  message: string;
+}
+
 // Environment variables
 const LARK_APP_SECRET = process.env.LARK_APP_SECRET;
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
-const SLACK_CHANNEL_ID = process.env.SLACK_CHANNEL_ID;
+const SLACK_DEFAULT_CHANNEL_ID = process.env.SLACK_CHANNEL_ID;
 
 // Verify Lark request using App Secret
 function verifyLarkRequest(appId: string | undefined): boolean {
@@ -61,13 +68,94 @@ function verifyLarkRequest(appId: string | undefined): boolean {
   return !!appId;
 }
 
+// Parse message for channel targeting
+// Formats:
+// - "#channel-name メッセージ" → send to channel by name
+// - "C1234567890 メッセージ" → send to channel by ID
+// - "[C1234567890|1234567890.123456] メッセージ" → reply to thread
+// - "メッセージ" → send to default channel
+function parseMessage(content: string): ParsedMessage {
+  let channelId: string | null = null;
+  let threadTs: string | null = null;
+  let message = content.trim();
+
+  // Pattern 1: Thread reply format [C1234567890|1234567890.123456]
+  const threadMatch = message.match(/^\[([A-Z][A-Z0-9]+)\|(\d+\.\d+)\]\s*([\s\S]*)/);
+  if (threadMatch) {
+    channelId = threadMatch[1];
+    threadTs = threadMatch[2];
+    message = threadMatch[3].trim();
+    return { channelId, threadTs, message };
+  }
+
+  // Pattern 2: Channel ID format (C1234567890 message)
+  const channelIdMatch = message.match(/^([A-Z][A-Z0-9]{8,})\s+([\s\S]+)/);
+  if (channelIdMatch) {
+    channelId = channelIdMatch[1];
+    message = channelIdMatch[2].trim();
+    return { channelId, threadTs, message };
+  }
+
+  // Pattern 3: Channel name format (#channel-name message)
+  const channelNameMatch = message.match(/^#([\w-]+)\s+([\s\S]+)/);
+  if (channelNameMatch) {
+    // Will need to resolve channel name to ID
+    const channelName = channelNameMatch[1];
+    message = channelNameMatch[2].trim();
+    return { channelId: `#${channelName}`, threadTs, message };
+  }
+
+  // Default: no channel specified
+  return { channelId: null, threadTs, message };
+}
+
+// Resolve channel name to ID
+async function resolveChannelId(channelRef: string): Promise<string | null> {
+  if (!SLACK_BOT_TOKEN) return null;
+
+  // Already a channel ID
+  if (channelRef.startsWith("C") && !channelRef.startsWith("#")) {
+    return channelRef;
+  }
+
+  // Channel name (remove # prefix)
+  const channelName = channelRef.replace(/^#/, "");
+
+  try {
+    // List channels to find by name
+    const response = await fetch(
+      `https://slack.com/api/conversations.list?limit=1000&types=public_channel,private_channel`,
+      {
+        headers: {
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+        },
+      }
+    );
+    const data = await response.json();
+
+    if (data.ok && data.channels) {
+      const channel = data.channels.find(
+        (ch: { name: string; id: string }) => ch.name === channelName
+      );
+      if (channel) {
+        return channel.id;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to resolve channel name:", error);
+  }
+
+  return null;
+}
+
 // Send message to Slack
 async function sendToSlack(
   message: string,
-  threadTs?: string
+  channelId: string,
+  threadTs?: string | null
 ): Promise<SlackPostResponse> {
-  if (!SLACK_BOT_TOKEN || !SLACK_CHANNEL_ID) {
-    throw new Error("Slack configuration missing");
+  if (!SLACK_BOT_TOKEN) {
+    throw new Error("SLACK_BOT_TOKEN not configured");
   }
 
   const payload: {
@@ -75,7 +163,7 @@ async function sendToSlack(
     text: string;
     thread_ts?: string;
   } = {
-    channel: SLACK_CHANNEL_ID,
+    channel: channelId,
     text: message,
   };
 
@@ -137,7 +225,7 @@ export async function POST(request: NextRequest) {
         const message = body.event.message;
 
         if (message) {
-          const messageContent = parseLarkMessageContent(message.content);
+          const rawContent = parseLarkMessageContent(message.content);
           const senderType = body.event.sender?.sender_type || "unknown";
 
           // Skip bot messages to avoid loops
@@ -146,15 +234,47 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, skipped: true });
           }
 
-          if (messageContent) {
+          if (rawContent) {
+            // Parse message for channel targeting
+            const parsed = parseMessage(rawContent);
+
+            // Determine target channel
+            let targetChannelId: string | null = null;
+
+            if (parsed.channelId) {
+              // Resolve channel reference to ID
+              targetChannelId = await resolveChannelId(parsed.channelId);
+              if (!targetChannelId) {
+                console.error(`Could not resolve channel: ${parsed.channelId}`);
+                // Fall back to default channel
+                targetChannelId = SLACK_DEFAULT_CHANNEL_ID || null;
+              }
+            } else {
+              // Use default channel
+              targetChannelId = SLACK_DEFAULT_CHANNEL_ID || null;
+            }
+
+            if (!targetChannelId) {
+              console.error("No target channel available");
+              return NextResponse.json(
+                { error: "No target channel configured" },
+                { status: 400 }
+              );
+            }
+
             // Format message for Slack
-            const slackMessage = `[Lark] ${messageContent}`;
+            const slackMessage = `[Lark] ${parsed.message}`;
 
             try {
-              const result = await sendToSlack(slackMessage);
+              const result = await sendToSlack(
+                slackMessage,
+                targetChannelId,
+                parsed.threadTs
+              );
 
               if (result.ok) {
-                console.log("Message forwarded to Slack successfully");
+                const replyType = parsed.threadTs ? "thread reply" : "message";
+                console.log(`${replyType} sent to Slack channel ${targetChannelId}`);
                 return NextResponse.json({ success: true, ts: result.ts });
               } else {
                 console.error("Slack API error:", result.error);

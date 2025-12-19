@@ -21,8 +21,14 @@ interface SlackEvent {
   team_id?: string;
 }
 
+interface SlackChannel {
+  id: string;
+  name: string;
+}
+
 // Environment variables
 const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET;
+const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 const LARK_WEBHOOK_URL = process.env.LARK_WEBHOOK_URL;
 
 // Verify Slack request signature
@@ -59,15 +65,14 @@ function verifySlackRequest(
 
 // Get Slack user info
 async function getSlackUserInfo(userId: string): Promise<string> {
-  const token = process.env.SLACK_BOT_TOKEN;
-  if (!token) return userId;
+  if (!SLACK_BOT_TOKEN) return userId;
 
   try {
     const response = await fetch(
       `https://slack.com/api/users.info?user=${userId}`,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
         },
       }
     );
@@ -81,14 +86,61 @@ async function getSlackUserInfo(userId: string): Promise<string> {
   return userId;
 }
 
-// Send message to Lark
-async function sendToLark(message: string, userName: string): Promise<boolean> {
+// Get Slack channel info
+async function getSlackChannelInfo(channelId: string): Promise<SlackChannel> {
+  if (!SLACK_BOT_TOKEN) return { id: channelId, name: channelId };
+
+  try {
+    const response = await fetch(
+      `https://slack.com/api/conversations.info?channel=${channelId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+        },
+      }
+    );
+    const data = await response.json();
+    if (data.ok && data.channel) {
+      return {
+        id: channelId,
+        name: data.channel.name || channelId,
+      };
+    }
+  } catch (error) {
+    console.error("Failed to get channel info:", error);
+  }
+  return { id: channelId, name: channelId };
+}
+
+// Send message to Lark with channel and thread info
+async function sendToLark(
+  message: string,
+  userName: string,
+  channel: SlackChannel,
+  threadTs?: string,
+  messageTs?: string
+): Promise<boolean> {
   if (!LARK_WEBHOOK_URL) {
     console.error("LARK_WEBHOOK_URL not configured");
     return false;
   }
 
   try {
+    // Format: include channel info for reply targeting
+    // [Slack #channel-name | C123456 | ts:1234567890.123456]
+    const threadInfo = threadTs ? ` (スレッド)` : "";
+    const replyInfo = `[${channel.id}|${messageTs || ""}]`;
+
+    const formattedMessage = [
+      `📢 #${channel.name}${threadInfo}`,
+      `👤 ${userName}`,
+      `━━━━━━━━━━━━━━━`,
+      message,
+      `━━━━━━━━━━━━━━━`,
+      `💬 返信: #${channel.name} メッセージ`,
+      `🔖 ${replyInfo}`,
+    ].join("\n");
+
     const response = await fetch(LARK_WEBHOOK_URL, {
       method: "POST",
       headers: {
@@ -97,7 +149,7 @@ async function sendToLark(message: string, userName: string): Promise<boolean> {
       body: JSON.stringify({
         msg_type: "text",
         content: {
-          text: `[Slack - ${userName}]\n${message}`,
+          text: formattedMessage,
         },
       }),
     });
@@ -153,16 +205,28 @@ export async function POST(request: NextRequest) {
 
         const text = event.text;
         const userId = event.user;
+        const channelId = event.channel;
+        const threadTs = event.thread_ts;
+        const messageTs = event.ts;
 
-        if (text && userId) {
-          // Get user name
-          const userName = await getSlackUserInfo(userId);
+        if (text && userId && channelId) {
+          // Get user and channel info
+          const [userName, channelInfo] = await Promise.all([
+            getSlackUserInfo(userId),
+            getSlackChannelInfo(channelId),
+          ]);
 
-          // Send to Lark
-          const success = await sendToLark(text, userName);
+          // Send to Lark with full context
+          const success = await sendToLark(
+            text,
+            userName,
+            channelInfo,
+            threadTs,
+            messageTs
+          );
 
           if (success) {
-            console.log("Message forwarded to Lark successfully");
+            console.log(`Message forwarded to Lark from #${channelInfo.name}`);
           } else {
             console.error("Failed to forward message to Lark");
           }
