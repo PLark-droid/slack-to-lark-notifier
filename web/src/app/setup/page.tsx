@@ -192,7 +192,7 @@ function SetupForm() {
           <>
             {/* Slack Section */}
             <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <span className="text-2xl">💬</span>
                 Slack 設定
               </h2>
@@ -279,7 +279,7 @@ function SetupForm() {
 
             {/* Lark Section */}
             <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <span className="text-2xl">🐦</span>
                 Lark 設定
               </h2>
@@ -365,7 +365,7 @@ function SetupForm() {
 
             {/* Slack Connect Section */}
             <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <span className="text-2xl">🔗</span>
                 Slack Connect（外部共有チャンネル）
               </h2>
@@ -480,7 +480,7 @@ function SetupForm() {
         ) : (
           /* Generated .env */
           <section className="bg-white rounded-xl p-6 shadow-md">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               ✅ 設定ファイルが生成されました
             </h2>
             <p className="text-gray-600 mb-4">

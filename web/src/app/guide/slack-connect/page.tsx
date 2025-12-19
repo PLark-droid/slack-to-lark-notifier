@@ -45,7 +45,7 @@ export default function SlackConnectGuide() {
 
         {/* Check if you need this */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span>🤔</span>
             この設定が必要かどうか確認
           </h2>
@@ -74,7 +74,7 @@ export default function SlackConnectGuide() {
 
         {/* Why User Token is needed */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span>💡</span>
             なぜ User Token が必要なのか
           </h2>
@@ -102,7 +102,7 @@ export default function SlackConnectGuide() {
 
         {/* Step 1 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">
               1
             </span>
@@ -158,7 +158,7 @@ export default function SlackConnectGuide() {
 
         {/* Step 2 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">
               2
             </span>
@@ -191,7 +191,7 @@ export default function SlackConnectGuide() {
 
         {/* Step 3 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">
               3
             </span>
@@ -222,7 +222,7 @@ export default function SlackConnectGuide() {
 
         {/* Step 4 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">
               4
             </span>
@@ -275,7 +275,7 @@ export default function SlackConnectGuide() {
 
         {/* Polling explanation */}
         <section className="bg-white rounded-xl p-6 shadow-md mt-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span>🔄</span>
             ポーリング方式について
           </h2>

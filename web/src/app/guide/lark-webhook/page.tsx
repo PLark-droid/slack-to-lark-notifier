@@ -29,7 +29,7 @@ export default function LarkWebhookGuide() {
 
         {/* Step 1 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
               1
             </span>
@@ -47,7 +47,7 @@ export default function LarkWebhookGuide() {
 
         {/* Step 2 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
               2
             </span>
@@ -76,7 +76,7 @@ export default function LarkWebhookGuide() {
 
         {/* Step 3 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
               3
             </span>
@@ -106,7 +106,7 @@ export default function LarkWebhookGuide() {
 
         {/* Step 4 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
               4
             </span>
@@ -136,7 +136,7 @@ export default function LarkWebhookGuide() {
 
         {/* Step 5 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">
               5
             </span>
@@ -171,7 +171,7 @@ export default function LarkWebhookGuide() {
 
         {/* Test */}
         <section className="bg-white rounded-xl p-6 shadow-md mt-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span>🧪</span>
             動作確認
           </h2>

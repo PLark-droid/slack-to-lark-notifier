@@ -16,9 +16,59 @@ export default function SlackAppGuide() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
+        {/* Important: Customer work required */}
+        <section className="bg-amber-50 rounded-xl p-6 border border-amber-200 mb-6">
+          <h2 className="text-lg font-bold text-amber-800 mb-3">
+            📌 お客様のワークスペースに連携する場合
+          </h2>
+          <p className="text-amber-700 mb-4">
+            当社でSlack Appを作成し、お客様にインストールしてもらいます。
+            お客様側の作業は最小限です。
+          </p>
+
+          <div className="bg-white rounded-lg p-4 border border-amber-200">
+            <h3 className="font-semibold text-gray-900 mb-3">
+              お客様にお願いする作業（3ステップ）
+            </h3>
+            <div className="space-y-3">
+              <div className="flex gap-3 items-start">
+                <span className="bg-green-100 text-green-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">1</span>
+                <div>
+                  <p className="text-gray-800 font-medium">インストールリンクをクリック</p>
+                  <p className="text-gray-500 text-sm">当社から共有されたURLを開く</p>
+                </div>
+              </div>
+              <div className="flex gap-3 items-start">
+                <span className="bg-green-100 text-green-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">2</span>
+                <div>
+                  <p className="text-gray-800 font-medium">「許可する」をクリック</p>
+                  <p className="text-gray-500 text-sm">ワークスペース管理者による承認が必要</p>
+                </div>
+              </div>
+              <div className="flex gap-3 items-start">
+                <span className="bg-green-100 text-green-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">3</span>
+                <div>
+                  <p className="text-gray-800 font-medium">チャンネルでBotを招待</p>
+                  <p className="text-gray-500 text-sm">監視したいチャンネルで <code className="bg-gray-100 px-1 rounded">/invite @Bot名</code></p>
+                  <p className="text-gray-400 text-xs">※ これはチャンネルメンバーなら誰でも可能</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-amber-200">
+              <p className="text-amber-700 text-sm">
+                ⏱️ 所要時間: 約1〜2分 ／ 技術的な設定作業は不要
+              </p>
+            </div>
+          </div>
+
+          <p className="text-amber-600 text-sm mt-4">
+            💡 以下の手順は当社側で実施します。お客様への作業依頼は上記のみです。
+          </p>
+        </section>
+
         {/* Step 1 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold">
               1
             </span>
@@ -44,7 +94,7 @@ export default function SlackAppGuide() {
 
         {/* Step 2 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold">
               2
             </span>
@@ -86,7 +136,7 @@ export default function SlackAppGuide() {
 
         {/* Step 3 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold">
               3
             </span>
@@ -137,7 +187,7 @@ export default function SlackAppGuide() {
 
         {/* Step 4 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold">
               4
             </span>
@@ -178,7 +228,7 @@ export default function SlackAppGuide() {
 
         {/* Step 5 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold">
               5
             </span>
@@ -210,7 +260,7 @@ export default function SlackAppGuide() {
 
         {/* Step 6 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold">
               6
             </span>
@@ -245,7 +295,7 @@ export default function SlackAppGuide() {
 
         {/* Step 7 */}
         <section className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold">
               7
             </span>
@@ -293,18 +343,123 @@ export default function SlackAppGuide() {
 
         {/* Bot invitation */}
         <section className="bg-white rounded-xl p-6 shadow-md mt-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span>💡</span>
             重要: Botをチャンネルに招待
           </h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-700 mb-4">
             監視したいSlackチャンネルで、作成したBotを招待する必要があります。
           </p>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-2">チャンネルで以下のコマンドを入力:</p>
-            <code className="bg-gray-200 px-3 py-1 rounded block">
+          <div className="bg-gray-100 p-4 rounded-lg">
+            <p className="text-sm text-gray-700 mb-2">チャンネルで以下のコマンドを入力:</p>
+            <code className="bg-gray-800 text-white px-4 py-2 rounded block font-mono">
               /invite @アプリ名
             </code>
+          </div>
+        </section>
+
+        {/* Distributing to customers */}
+        <section className="bg-purple-50 rounded-xl p-6 border border-purple-200 mt-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-3">
+            🔗 お客様のワークスペースにインストールしてもらう方法
+          </h2>
+          <p className="text-gray-700 mb-4">
+            当社で作成したAppをお客様のワークスペースにインストールしてもらう場合は、
+            以下の手順でインストールリンクを共有します。
+          </p>
+          <ol className="space-y-4 text-gray-700">
+            <li className="flex gap-3">
+              <span className="bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">1</span>
+              <div>
+                左メニューから <strong className="text-gray-900">&quot;Manage Distribution&quot;</strong> をクリック
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">2</span>
+              <div>
+                <strong className="text-gray-900">チェックリストを完了する</strong>
+                <p className="text-gray-600 text-sm mt-1">
+                  「Activate Public Distribution」ボタンがグレーの場合、先にチェック項目を完了します:
+                </p>
+                <div className="bg-white rounded-lg p-3 mt-2 border border-purple-200">
+                  <ul className="text-sm text-gray-700 space-y-3">
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 font-bold">✓</span>
+                      <div>
+                        <strong>Enable Features & Functionality</strong>
+                        <span className="text-gray-500"> - 自動で完了済み</span>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-orange-500 font-bold">!</span>
+                      <div>
+                        <strong>Add OAuth Redirect URLs</strong>
+                        <span className="text-red-600 font-medium"> - 設定が必要</span>
+                        <div className="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                          <p className="text-gray-700 text-xs mb-2">Socket Mode使用でも最低1つ必要です:</p>
+                          <ol className="text-xs text-gray-600 space-y-1">
+                            <li>1. 「Add OAuth Redirect URLs」をクリック</li>
+                            <li>2. 「OAuth & Permissions」ページが開く</li>
+                            <li>3. 「Redirect URLs」セクションで「Add New Redirect URL」をクリック</li>
+                            <li>4. <code className="bg-gray-200 px-1 rounded">https://localhost</code> を入力して「Add」</li>
+                            <li>5. 「Save URLs」をクリック</li>
+                          </ol>
+                          <p className="text-gray-500 text-xs mt-2">※ 実際にはこのURLは使用されません（Socket Mode使用のため）</p>
+                        </div>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 font-bold">✓</span>
+                      <div>
+                        <strong>Remove Hard Coded Information</strong>
+                        <span className="text-gray-500"> - 自動で完了済み</span>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 font-bold">✓</span>
+                      <div>
+                        <strong>Use HTTPS For Your Features</strong>
+                        <span className="text-gray-500"> - 自動で完了済み</span>
+                      </div>
+                    </li>
+                  </ul>
+                  <p className="text-xs text-gray-600 mt-3 font-medium">
+                    ※ すべてに緑のチェックが付くとボタンが有効になります
+                  </p>
+                </div>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">3</span>
+              <div>
+                <strong className="text-gray-900">&quot;Activate Public Distribution&quot;</strong> をクリック
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">4</span>
+              <div>
+                <strong className="text-gray-900">&quot;Shareable URL&quot;</strong> をコピー
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">5</span>
+              <div>
+                お客様にこのURLを共有し、「許可する」をクリックしてもらう
+              </div>
+            </li>
+          </ol>
+          <div className="mt-4 p-4 bg-white rounded-lg border border-purple-200">
+            <p className="text-gray-900 text-sm font-bold mb-2">
+              お客様への案内テンプレート:
+            </p>
+            <div className="bg-gray-800 text-gray-100 p-3 rounded text-sm font-mono">
+              <p>Slack-Lark連携ツールのインストールをお願いします。</p>
+              <p className="mt-2">【手順】</p>
+              <p>1. 以下のリンクをクリック</p>
+              <p>2. 「許可する」をクリック</p>
+              <p>3. 連携したいチャンネルで /invite @アプリ名 を実行</p>
+              <p className="mt-2 text-gray-400">[インストールリンクをここに貼り付け]</p>
+            </div>
           </div>
         </section>
 

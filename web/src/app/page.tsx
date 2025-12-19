@@ -31,7 +31,7 @@ export default function Home() {
         {/* Mode Selection */}
         {!mode && (
           <section className="mb-12">
-            <h2 className="text-xl font-semibold mb-6 text-center">
+            <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">
               どのような連携を設定しますか？
             </h2>
             <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
@@ -92,7 +92,7 @@ export default function Home() {
               >
                 ← 戻る
               </button>
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-2xl font-bold text-gray-900">
                 基本モード セットアップ手順
               </h2>
             </div>
@@ -176,7 +176,7 @@ export default function Home() {
               >
                 ← 戻る
               </button>
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-2xl font-bold text-gray-900">
                 双方向モード セットアップ手順
               </h2>
             </div>
@@ -240,7 +240,7 @@ export default function Home() {
 
         {/* FAQ Section */}
         <section className="mt-12 bg-white rounded-xl p-8 shadow-md">
-          <h2 className="text-xl font-semibold mb-6">よくある質問</h2>
+          <h2 className="text-2xl font-bold mb-6 text-gray-900">よくある質問</h2>
           <div className="space-y-6">
             <FaqItem question="料金はかかりますか？">
               このツールは無料で利用できます。Slack AppとLark Webhookの作成も無料です。
@@ -257,6 +257,16 @@ export default function Home() {
             <FaqItem question="双方向連携では何ができますか？">
               Slack→Larkの転送に加えて、Lark側で送信したメッセージを
               Slackに返信として送ることができます。
+            </FaqItem>
+            <FaqItem question="お客様側での作業は必要ですか？">
+              最小限の作業をお願いします。①インストールリンクをクリック
+              ②「許可する」をクリック（管理者）③チャンネルでBotを招待。
+              所要時間は1〜2分程度で、技術的な設定は不要です。
+            </FaqItem>
+            <FaqItem question="Slack AppとBotの違いは？">
+              Slack Appはアプリケーション全体のことで、Botはその中の一機能です。
+              Botはチャンネルに招待でき、メッセージの送受信を行います。
+              AppをインストールするとBotが使えるようになります。
             </FaqItem>
           </div>
         </section>
