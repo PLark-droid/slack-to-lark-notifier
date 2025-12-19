@@ -100,11 +100,15 @@ async function getLarkAccessToken(): Promise<string | null> {
   return null;
 }
 
-// Get Lark user info
+// Get Lark user info - try multiple methods
 async function getLarkUserName(openId: string): Promise<string> {
   const token = await getLarkAccessToken();
-  if (!token) return openId;
+  if (!token) {
+    console.log("No Lark access token available");
+    return openId;
+  }
 
+  // Method 1: Try contact API
   try {
     const response = await fetch(
       `https://open.larksuite.com/open-apis/contact/v3/users/${openId}?user_id_type=open_id`,
@@ -116,13 +120,116 @@ async function getLarkUserName(openId: string): Promise<string> {
     );
 
     const data = await response.json();
+    console.log("Lark user info response:", JSON.stringify(data));
+
     if (data.code === 0 && data.data?.user) {
       return data.data.user.name || data.data.user.en_name || openId;
+    }
+
+    // If contact API fails, try to get user from IM API
+    if (data.code !== 0) {
+      console.log(`Contact API failed with code ${data.code}: ${data.msg}`);
     }
   } catch (error) {
     console.error("Failed to get Lark user info:", error);
   }
+
+  // Method 2: Try IM chat member info (batch get)
+  try {
+    const batchResponse = await fetch(
+      `https://open.larksuite.com/open-apis/contact/v3/users/batch?user_ids=${openId}&user_id_type=open_id`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const batchData = await batchResponse.json();
+    console.log("Lark batch user info response:", JSON.stringify(batchData));
+
+    if (batchData.code === 0 && batchData.data?.items?.[0]) {
+      const user = batchData.data.items[0];
+      return user.name || user.en_name || openId;
+    }
+  } catch (error) {
+    console.error("Failed to get Lark user info (batch):", error);
+  }
+
   return openId;
+}
+
+// Cache for Slack users (for @mention resolution)
+let slackUsersCache: Map<string, string> | null = null;
+let slackUsersCacheExpiry: number = 0;
+
+// Get Slack users for @mention resolution
+async function getSlackUsers(): Promise<Map<string, string>> {
+  if (slackUsersCache && Date.now() < slackUsersCacheExpiry) {
+    return slackUsersCache;
+  }
+
+  if (!SLACK_BOT_TOKEN) {
+    return new Map();
+  }
+
+  try {
+    const response = await fetch(
+      "https://slack.com/api/users.list?limit=1000",
+      {
+        headers: {
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+    if (data.ok && data.members) {
+      const userMap = new Map<string, string>();
+      for (const member of data.members) {
+        if (!member.deleted && !member.is_bot) {
+          // Map various name formats to user ID
+          const userId = member.id;
+          const displayName = member.profile?.display_name?.toLowerCase();
+          const realName = member.profile?.real_name?.toLowerCase();
+          const name = member.name?.toLowerCase();
+
+          if (displayName) userMap.set(displayName, userId);
+          if (realName) userMap.set(realName, userId);
+          if (name) userMap.set(name, userId);
+        }
+      }
+      slackUsersCache = userMap;
+      slackUsersCacheExpiry = Date.now() + 5 * 60 * 1000; // Cache for 5 minutes
+      return userMap;
+    }
+  } catch (error) {
+    console.error("Failed to get Slack users:", error);
+  }
+
+  return new Map();
+}
+
+// Convert @mentions in message to Slack format
+async function convertMentionsToSlack(message: string): Promise<string> {
+  const mentionPattern = /@([\w\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]+)/g;
+  const mentions = message.match(mentionPattern);
+
+  if (!mentions) return message;
+
+  const slackUsers = await getSlackUsers();
+  let convertedMessage = message;
+
+  for (const mention of mentions) {
+    const username = mention.slice(1).toLowerCase(); // Remove @ and lowercase
+    const slackUserId = slackUsers.get(username);
+
+    if (slackUserId) {
+      convertedMessage = convertedMessage.replace(mention, `<@${slackUserId}>`);
+    }
+  }
+
+  return convertedMessage;
 }
 
 // Verify Lark request using App Secret
@@ -336,8 +443,9 @@ export async function POST(request: NextRequest) {
               );
             }
 
-            // Format message for Slack with sender name
-            const slackMessage = `[Lark - ${senderName}] ${parsed.message}`;
+            // Convert @mentions and format message for Slack with sender name
+            const convertedMessage = await convertMentionsToSlack(parsed.message);
+            const slackMessage = `[Lark - ${senderName}] ${convertedMessage}`;
 
             try {
               const result = await sendToSlack(
