@@ -53,9 +53,77 @@ interface ParsedMessage {
 }
 
 // Environment variables
+const LARK_APP_ID = process.env.LARK_APP_ID;
 const LARK_APP_SECRET = process.env.LARK_APP_SECRET;
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 const SLACK_DEFAULT_CHANNEL_ID = process.env.SLACK_CHANNEL_ID;
+
+// Cache for Lark tenant access token
+let larkAccessToken: string | null = null;
+let larkTokenExpiry: number = 0;
+
+// Get Lark tenant access token
+async function getLarkAccessToken(): Promise<string | null> {
+  if (larkAccessToken && Date.now() < larkTokenExpiry) {
+    return larkAccessToken;
+  }
+
+  if (!LARK_APP_ID || !LARK_APP_SECRET) {
+    console.warn("LARK_APP_ID or LARK_APP_SECRET not configured");
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          app_id: LARK_APP_ID,
+          app_secret: LARK_APP_SECRET,
+        }),
+      }
+    );
+
+    const data = await response.json();
+    if (data.code === 0) {
+      larkAccessToken = data.tenant_access_token;
+      larkTokenExpiry = Date.now() + (data.expire - 300) * 1000; // Refresh 5 min early
+      return larkAccessToken;
+    }
+  } catch (error) {
+    console.error("Failed to get Lark access token:", error);
+  }
+  return null;
+}
+
+// Get Lark user info
+async function getLarkUserName(openId: string): Promise<string> {
+  const token = await getLarkAccessToken();
+  if (!token) return openId;
+
+  try {
+    const response = await fetch(
+      `https://open.larksuite.com/open-apis/contact/v3/users/${openId}?user_id_type=open_id`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+    if (data.code === 0 && data.data?.user) {
+      return data.data.user.name || data.data.user.en_name || openId;
+    }
+  } catch (error) {
+    console.error("Failed to get Lark user info:", error);
+  }
+  return openId;
+}
 
 // Verify Lark request using App Secret
 function verifyLarkRequest(appId: string | undefined): boolean {
@@ -235,6 +303,12 @@ export async function POST(request: NextRequest) {
           }
 
           if (rawContent) {
+            // Get sender info
+            const senderId = body.event.sender?.sender_id?.open_id;
+            const senderName = senderId
+              ? await getLarkUserName(senderId)
+              : "Unknown";
+
             // Parse message for channel targeting
             const parsed = parseMessage(rawContent);
 
@@ -262,8 +336,8 @@ export async function POST(request: NextRequest) {
               );
             }
 
-            // Format message for Slack
-            const slackMessage = `[Lark] ${parsed.message}`;
+            // Format message for Slack with sender name
+            const slackMessage = `[Lark - ${senderName}] ${parsed.message}`;
 
             try {
               const result = await sendToSlack(
