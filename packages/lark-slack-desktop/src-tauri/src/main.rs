@@ -278,9 +278,13 @@ async fn start_bridge(app: AppHandle, state: State<'_, AppState>) -> Result<Brid
 
 #[tauri::command]
 async fn stop_bridge(state: State<'_, AppState>) -> Result<BridgeStatus, String> {
-    let mut process_guard = state.bridge_process.lock().unwrap();
+    // Take the child process without holding the lock across await
+    let child_opt = {
+        let mut process_guard = state.bridge_process.lock().unwrap();
+        process_guard.take()
+    };
 
-    if let Some(mut child) = process_guard.take() {
+    if let Some(mut child) = child_opt {
         // Try graceful shutdown first via HTTP
         let client = reqwest::Client::new();
         let _ = client.post("http://127.0.0.1:3456/stop").send().await;
