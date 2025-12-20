@@ -84,10 +84,15 @@ jobs:
           workspaces: './packages/lark-slack-desktop/src-tauri -> target'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          cd packages/lark-slack-desktop
+          npm ci
 
       - name: Build lark-slack-connector
-        run: npm run build --workspace=lark-slack-connector
+        run: |
+          cd packages/lark-slack-connector
+          npm ci
+          npm run build
 
       - name: Update version in tauri.conf.json
         run: |
