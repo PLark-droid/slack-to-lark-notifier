@@ -51,6 +51,7 @@ export class LarkSlackBridge extends EventEmitter {
         workspace,
         socketMode: options.config.slack.socketMode,
         logLevel: options.config.options?.logLevel,
+        senderConfig: options.config.sender,
       });
 
       // Set up message forwarding
@@ -112,11 +113,15 @@ export class LarkSlackBridge extends EventEmitter {
   private async handleLarkMessage(message: LarkMessage): Promise<void> {
     this.emitEvent('lark:message', { message });
 
-    // Find channel mapping
+    // Find channel mapping or use default channel
     const mapping = this.findChannelMapping(message.chatId, 'lark-to-slack');
+    const defaultChannel = this.config.options?.defaultSlackChannel;
 
-    if (!mapping) {
-      return; // No mapping found, ignore message
+    const targetChannel = mapping?.slackChannel || defaultChannel;
+
+    if (!targetChannel) {
+      this.log('debug', `No mapping or default channel for Lark chat: ${message.chatId}`);
+      return;
     }
 
     try {
@@ -124,11 +129,21 @@ export class LarkSlackBridge extends EventEmitter {
       const slackClient = this.slackClients.values().next().value as SlackClient | undefined;
 
       if (slackClient) {
-        await slackClient.sendMessage(mapping.slackChannel, formattedMessage);
+        // Send as user if configured (松井大樹アカウントで送信)
+        const sendAsUser = this.config.sender?.sendAsUser ?? false;
+        if (sendAsUser && slackClient.hasUserToken()) {
+          await slackClient.sendMessageAsUser(targetChannel, formattedMessage);
+          this.log('info', `Forwarded Lark message to Slack as user: ${targetChannel}`);
+        } else {
+          await slackClient.sendMessage(targetChannel, formattedMessage);
+          this.log('info', `Forwarded Lark message to Slack: ${targetChannel}`);
+        }
+
         this.stats.larkToSlack++;
         this.emitEvent('bridge:forward', {
           direction: 'lark-to-slack',
           message,
+          targetChannel,
         });
       }
     } catch (error) {

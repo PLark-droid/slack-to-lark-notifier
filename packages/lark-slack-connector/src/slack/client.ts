@@ -1,21 +1,26 @@
 import { App, LogLevel } from '@slack/bolt';
-import { SlackWorkspace, SlackMessage } from '../types';
+import { SlackWorkspace, SlackMessage, SenderConfig } from '../types';
 
 export interface SlackClientOptions {
   workspace: SlackWorkspace;
   socketMode?: boolean;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  senderConfig?: SenderConfig;
 }
 
 export class SlackClient {
   private app: App;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private webClient: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private userWebClient: any;
   private workspace: SlackWorkspace;
+  private senderConfig?: SenderConfig;
   private messageHandlers: Array<(message: SlackMessage) => void | Promise<void>> = [];
 
   constructor(options: SlackClientOptions) {
     this.workspace = options.workspace;
+    this.senderConfig = options.senderConfig;
 
     const logLevelMap: Record<string, LogLevel> = {
       debug: LogLevel.DEBUG,
@@ -35,6 +40,13 @@ export class SlackClient {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { WebClient } = require('@slack/web-api');
     this.webClient = new WebClient(options.workspace.botToken);
+
+    // Create user web client if user token is available
+    const userToken = options.senderConfig?.slackUserToken || options.workspace.userToken;
+    if (userToken) {
+      this.userWebClient = new WebClient(userToken);
+    }
+
     this.setupEventHandlers();
   }
 
@@ -96,13 +108,41 @@ export class SlackClient {
 
   /**
    * Send a message to a Slack channel
+   * @param channel - Channel ID or name
+   * @param text - Message text
+   * @param threadTs - Optional thread timestamp for replies
+   * @param asUser - If true, send as user (requires user token)
    */
-  async sendMessage(channel: string, text: string, threadTs?: string): Promise<void> {
-    await this.webClient.chat.postMessage({
+  async sendMessage(channel: string, text: string, threadTs?: string, asUser?: boolean): Promise<void> {
+    const shouldSendAsUser = asUser ?? this.senderConfig?.sendAsUser ?? false;
+    const client = shouldSendAsUser && this.userWebClient ? this.userWebClient : this.webClient;
+
+    await client.chat.postMessage({
       channel,
       text,
       thread_ts: threadTs,
     });
+  }
+
+  /**
+   * Send a message as the configured user (松井大樹)
+   */
+  async sendMessageAsUser(channel: string, text: string, threadTs?: string): Promise<void> {
+    if (!this.userWebClient) {
+      throw new Error('User token is not configured. Cannot send as user.');
+    }
+    await this.userWebClient.chat.postMessage({
+      channel,
+      text,
+      thread_ts: threadTs,
+    });
+  }
+
+  /**
+   * Check if user token is available
+   */
+  hasUserToken(): boolean {
+    return Boolean(this.userWebClient);
   }
 
   /**

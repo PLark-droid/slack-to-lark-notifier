@@ -21,7 +21,13 @@ interface Config {
   slackBotToken: string;
   slackAppToken: string;
   slackSigningSecret: string;
+  slackUserToken: string; // For sending as user (松井大樹)
   larkWebhookUrl: string;
+  larkAppId: string;
+  larkAppSecret: string;
+  // Bidirectional settings
+  sendAsUser: boolean;
+  defaultSlackChannel: string;
 }
 
 // Tauri invoke wrapper - lazy loaded on first use
@@ -67,7 +73,12 @@ function App() {
     slackBotToken: '',
     slackAppToken: '',
     slackSigningSecret: '',
+    slackUserToken: '',
     larkWebhookUrl: '',
+    larkAppId: '',
+    larkAppSecret: '',
+    sendAsUser: true,
+    defaultSlackChannel: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -393,13 +404,33 @@ function App() {
                   🐦 Lark
                 </h3>
                 <div className="form-group">
-                  <label className="form-label">Webhook URL</label>
+                  <label className="form-label">Webhook URL (Slack→Lark送信用)</label>
                   <input
                     type="text"
                     className="form-input"
                     value={config.larkWebhookUrl}
                     onChange={(e) => setConfig(prev => ({ ...prev, larkWebhookUrl: e.target.value }))}
                     placeholder="https://open.larksuite.com/..."
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">App ID (Lark→Slack受信用、オプション)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={config.larkAppId}
+                    onChange={(e) => setConfig(prev => ({ ...prev, larkAppId: e.target.value }))}
+                    placeholder="cli_xxxxx"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">App Secret (オプション)</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    value={config.larkAppSecret}
+                    onChange={(e) => setConfig(prev => ({ ...prev, larkAppSecret: e.target.value }))}
+                    placeholder="App Secret..."
                   />
                 </div>
                 <button
@@ -412,15 +443,58 @@ function App() {
                 </button>
               </div>
 
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ fontSize: 13, marginBottom: 12, color: 'var(--accent)' }}>
+                  🔄 双方向通信設定
+                </h3>
+                <div className="form-group">
+                  <label className="form-label">Slack User Token (松井大樹アカウント用)</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    value={config.slackUserToken}
+                    onChange={(e) => setConfig(prev => ({ ...prev, slackUserToken: e.target.value }))}
+                    placeholder="xoxp-..."
+                  />
+                  <small style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+                    Lark→Slackの送信時、このアカウントで送信されます
+                  </small>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">デフォルトSlackチャンネル (Lark→Slack)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={config.defaultSlackChannel}
+                    onChange={(e) => setConfig(prev => ({ ...prev, defaultSlackChannel: e.target.value }))}
+                    placeholder="general または C0A2ZRFT6UU"
+                  />
+                  <small style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+                    Larkからのメッセージをデフォルトで送信するチャンネル
+                  </small>
+                </div>
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    id="sendAsUser"
+                    checked={config.sendAsUser}
+                    onChange={(e) => setConfig(prev => ({ ...prev, sendAsUser: e.target.checked }))}
+                  />
+                  <label htmlFor="sendAsUser" style={{ fontSize: 12 }}>
+                    ユーザーアカウント（松井大樹）として送信
+                  </label>
+                </div>
+              </div>
+
               <div style={{ marginTop: 20, padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8 }}>
                 <h4 style={{ fontSize: 12, marginBottom: 8, color: 'var(--accent)' }}>
                   📌 双方向通信について
                 </h4>
                 <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                  <strong>Slack → Lark:</strong> Socket Mode で自動受信<br />
+                  <strong>Slack → Lark:</strong> Socket Mode で自動受信、Webhookで送信<br />
                   <strong>Lark → Slack:</strong>
                   ローカルサーバー (port 3456) が起動します。
-                  Larkの「Webhook設定」で <code>http://your-ip:3456/lark/webhook</code> を設定してください。
+                  Larkの「Event Subscription」で <code>http://your-ip:3456/lark/webhook</code> を設定してください。
                 </p>
               </div>
             </div>
