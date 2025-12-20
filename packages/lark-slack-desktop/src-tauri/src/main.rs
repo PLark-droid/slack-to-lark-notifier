@@ -135,6 +135,14 @@ fn main() {
             config: Mutex::new(Config::default()),
             status: Mutex::new(BridgeStatus::default()),
         })
+        .setup(|app| {
+            // Ensure window is visible on startup
+            if let Some(window) = app.get_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            Ok(())
+        })
         .system_tray(tray)
         .on_system_tray_event(|app, event| match event {
             SystemTrayEvent::LeftClick { .. } => {
@@ -165,7 +173,7 @@ fn main() {
                     status.lark_connected = false;
                 }
                 "quit" => {
-                    std::process::exit(0);
+                    app.exit(0);
                 }
                 _ => {}
             },
@@ -173,8 +181,8 @@ fn main() {
         })
         .on_window_event(|event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event.event() {
-                // Hide window instead of closing
-                event.window().hide().unwrap();
+                // Hide window instead of closing (minimize to tray)
+                let _ = event.window().hide();
                 api.prevent_close();
             }
         })
