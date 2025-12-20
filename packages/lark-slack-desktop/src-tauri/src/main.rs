@@ -3,9 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{
-    CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem,
-};
+use tauri::Manager;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct Config {
@@ -46,21 +44,6 @@ fn get_config(state: tauri::State<AppState>) -> Config {
 
 #[tauri::command]
 fn save_config(config: Config, state: tauri::State<AppState>) -> Result<(), String> {
-    // Save to secure storage using keyring
-    let service = "lark-slack-connector";
-
-    if !config.slack_bot_token.is_empty() {
-        let entry = keyring::Entry::new(service, "slack_bot_token")
-            .map_err(|e| e.to_string())?;
-        entry.set_password(&config.slack_bot_token).map_err(|e| e.to_string())?;
-    }
-
-    if !config.lark_webhook_url.is_empty() {
-        let entry = keyring::Entry::new(service, "lark_webhook_url")
-            .map_err(|e| e.to_string())?;
-        entry.set_password(&config.lark_webhook_url).map_err(|e| e.to_string())?;
-    }
-
     *state.config.lock().unwrap() = config;
     Ok(())
 }
@@ -112,24 +95,7 @@ async fn test_lark_webhook(url: String) -> Result<(), String> {
     }
 }
 
-fn create_tray_menu() -> SystemTrayMenu {
-    let show = CustomMenuItem::new("show".to_string(), "ウィンドウを表示");
-    let start = CustomMenuItem::new("start".to_string(), "開始");
-    let stop = CustomMenuItem::new("stop".to_string(), "停止");
-    let quit = CustomMenuItem::new("quit".to_string(), "終了");
-
-    SystemTrayMenu::new()
-        .add_item(show)
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(start)
-        .add_item(stop)
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(quit)
-}
-
 fn main() {
-    let tray = SystemTray::new().with_menu(create_tray_menu());
-
     tauri::Builder::default()
         .manage(AppState {
             config: Mutex::new(Config::default()),
@@ -138,53 +104,13 @@ fn main() {
         .setup(|app| {
             // Ensure window is visible on startup
             if let Some(window) = app.get_window("main") {
+                println!("Window found, showing...");
                 let _ = window.show();
                 let _ = window.set_focus();
+            } else {
+                println!("Window 'main' not found!");
             }
             Ok(())
-        })
-        .system_tray(tray)
-        .on_system_tray_event(|app, event| match event {
-            SystemTrayEvent::LeftClick { .. } => {
-                if let Some(window) = app.get_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
-            SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
-                "show" => {
-                    if let Some(window) = app.get_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                }
-                "start" => {
-                    let state = app.state::<AppState>();
-                    let mut status = state.status.lock().unwrap();
-                    status.is_running = true;
-                    status.slack_connected = true;
-                    status.lark_connected = true;
-                }
-                "stop" => {
-                    let state = app.state::<AppState>();
-                    let mut status = state.status.lock().unwrap();
-                    status.is_running = false;
-                    status.slack_connected = false;
-                    status.lark_connected = false;
-                }
-                "quit" => {
-                    app.exit(0);
-                }
-                _ => {}
-            },
-            _ => {}
-        })
-        .on_window_event(|event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event.event() {
-                // Hide window instead of closing (minimize to tray)
-                let _ = event.window().hide();
-                api.prevent_close();
-            }
         })
         .invoke_handler(tauri::generate_handler![
             get_config,

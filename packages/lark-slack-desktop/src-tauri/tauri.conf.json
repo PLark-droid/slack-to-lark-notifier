@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "Lark-Slack Connector",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "tauri": {
     "allowlist": {
@@ -51,19 +51,6 @@
     },
     "security": {
       "csp": null
-    },
-    "systemTray": {
-      "iconPath": "icons/32x32.png",
-      "iconAsTemplate": false,
-      "menuOnLeftClick": true
-    },
-    "updater": {
-      "active": true,
-      "endpoints": [
-        "https://github.com/PLark-droid/slack-to-lark-notifier/releases/latest/download/latest.json"
-      ],
-      "dialog": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE2MjE4RjA1RkE4NzQ2OUUKUldTZVJvZjZCWThoRnMyU2p5R1krdjg4cHBHU1l6eUU1bHNSQ2NiTTkrQWE3NTRESUEwOE5jcTYK"
     },
     "windows": [
       {
