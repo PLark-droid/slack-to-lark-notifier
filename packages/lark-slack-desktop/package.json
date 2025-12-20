@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "generate-icons": "node scripts/generate-icons.js",
+    "prebuild": "npm run generate-icons"
   },
   "dependencies": {
     "react": "^18.2.0",

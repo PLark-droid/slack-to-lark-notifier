@@ -1,0 +1,94 @@
+name: Desktop Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/lark-slack-desktop/**'
+      - 'packages/lark-slack-connector/**'
+      - '.github/workflows/desktop-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/lark-slack-desktop/**'
+      - 'packages/lark-slack-connector/**'
+      - '.github/workflows/desktop-build.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: '--target universal-apple-darwin'
+            name: macOS
+          - platform: windows-latest
+            args: ''
+            name: Windows
+
+    runs-on: ${{ matrix.platform }}
+    name: Build (${{ matrix.name }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './packages/lark-slack-desktop/src-tauri -> target'
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build lark-slack-connector
+        run: npm run build --workspace=lark-slack-connector
+
+      - name: Build Desktop App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: packages/lark-slack-desktop
+          args: ${{ matrix.args }}
+
+      - name: Upload artifacts (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: |
+            packages/lark-slack-desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            packages/lark-slack-desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
+          if-no-files-found: warn
+
+      - name: Upload artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            packages/lark-slack-desktop/src-tauri/target/release/bundle/msi/*.msi
+            packages/lark-slack-desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn

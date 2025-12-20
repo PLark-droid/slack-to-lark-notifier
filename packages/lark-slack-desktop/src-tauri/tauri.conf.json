@@ -58,7 +58,12 @@
       "menuOnLeftClick": false
     },
     "updater": {
-      "active": false
+      "active": true,
+      "endpoints": [
+        "https://github.com/PLark-droid/slack-to-lark-notifier/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": ""
     },
     "windows": [
       {
