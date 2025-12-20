@@ -1,0 +1,23 @@
+[package]
+name = "lark-slack-desktop"
+version = "0.1.0"
+description = "Lark-Slack Connector Desktop App"
+authors = ["PLark-droid"]
+license = "MIT"
+repository = "https://github.com/PLark-droid/slack-to-lark-notifier"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.5", features = ["shell-open", "system-tray"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+keyring = "2"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
