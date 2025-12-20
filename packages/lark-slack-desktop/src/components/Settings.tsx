@@ -1,5 +1,15 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+
+const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+
+const invoke = async <T,>(cmd: string, args?: Record<string, unknown>): Promise<T> => {
+  if (!isTauri) {
+    console.warn('Tauri not available');
+    return {} as T;
+  }
+  const { invoke: tauriInvoke } = await import('@tauri-apps/api/tauri');
+  return tauriInvoke<T>(cmd, args);
+};
 
 interface Config {
   slackBotToken: string;

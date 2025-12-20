@@ -1,7 +1,25 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
-import { listen } from '@tauri-apps/api/event';
 import Settings from './components/Settings';
+
+// Dynamic import for Tauri API to handle cases where it might not be available
+const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+
+const invoke = async <T,>(cmd: string, args?: Record<string, unknown>): Promise<T> => {
+  if (!isTauri) {
+    console.warn('Tauri not available, using mock');
+    return {} as T;
+  }
+  const { invoke: tauriInvoke } = await import('@tauri-apps/api/tauri');
+  return tauriInvoke<T>(cmd, args);
+};
+
+const listen = async <T,>(event: string, handler: (event: { payload: T }) => void) => {
+  if (!isTauri) {
+    return () => {};
+  }
+  const { listen: tauriListen } = await import('@tauri-apps/api/event');
+  return tauriListen<T>(event, handler);
+};
 
 interface BridgeStatus {
   isRunning: boolean;
