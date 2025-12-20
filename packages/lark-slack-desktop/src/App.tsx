@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 interface BridgeStatus {
   isRunning: boolean;
@@ -22,6 +22,21 @@ interface Config {
   larkWebhookUrl: string;
 }
 
+// Tauri invoke wrapper - lazy loaded on first use
+let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+
+const invoke = async <T,>(cmd: string, args?: Record<string, unknown>): Promise<T> => {
+  if (!tauriInvoke) {
+    try {
+      const tauri = await import('@tauri-apps/api/tauri');
+      tauriInvoke = tauri.invoke;
+    } catch {
+      throw new Error('Tauri not available');
+    }
+  }
+  return tauriInvoke(cmd, args) as Promise<T>;
+};
+
 function App() {
   const [status, setStatus] = useState<BridgeStatus>({
     isRunning: false,
@@ -38,30 +53,98 @@ function App() {
     slackAppToken: '',
     larkWebhookUrl: '',
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const configLoaded = useRef(false);
 
   const addLog = (message: string, type: LogEntry['type']) => {
     const time = new Date().toLocaleTimeString('ja-JP');
     setLogs((prev) => [...prev.slice(-99), { time, message, type }]);
   };
 
-  const handleStart = () => {
-    setStatus(prev => ({
-      ...prev,
-      isRunning: true,
-      slackConnected: true,
-      larkConnected: true,
-    }));
-    addLog('ブリッジを起動しました', 'success');
+  const handleStart = async () => {
+    setIsLoading(true);
+    try {
+      const newStatus = await invoke<BridgeStatus>('start_bridge');
+      setStatus(newStatus);
+      addLog('ブリッジを起動しました', 'success');
+    } catch (error) {
+      addLog(`起動エラー: ${error}`, 'error');
+      // Fallback to local state
+      setStatus(prev => ({
+        ...prev,
+        isRunning: true,
+        slackConnected: true,
+        larkConnected: true,
+      }));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleStop = () => {
-    setStatus(prev => ({
-      ...prev,
-      isRunning: false,
-      slackConnected: false,
-      larkConnected: false,
-    }));
-    addLog('ブリッジを停止しました', 'info');
+  const handleStop = async () => {
+    setIsLoading(true);
+    try {
+      const newStatus = await invoke<BridgeStatus>('stop_bridge');
+      setStatus(newStatus);
+      addLog('ブリッジを停止しました', 'info');
+    } catch (error) {
+      addLog(`停止エラー: ${error}`, 'error');
+      // Fallback to local state
+      setStatus(prev => ({
+        ...prev,
+        isRunning: false,
+        slackConnected: false,
+        larkConnected: false,
+      }));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenSettings = async () => {
+    // Load config from backend when opening settings
+    if (!configLoaded.current) {
+      try {
+        const savedConfig = await invoke<Config>('get_config');
+        setConfig(savedConfig);
+        configLoaded.current = true;
+      } catch {
+        // Use default config if load fails
+      }
+    }
+    setShowSettings(true);
+  };
+
+  const handleSaveConfig = async () => {
+    setIsLoading(true);
+    try {
+      await invoke('save_config', { config });
+      addLog('設定を保存しました', 'success');
+      setShowSettings(false);
+    } catch (error) {
+      addLog(`設定の保存に失敗: ${error}`, 'error');
+      // Still close modal on error
+      setShowSettings(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!config.larkWebhookUrl) {
+      addLog('Webhook URLを入力してください', 'error');
+      return;
+    }
+    setIsTesting(true);
+    try {
+      await invoke('test_lark_webhook', { url: config.larkWebhookUrl });
+      addLog('Lark Webhookテスト成功', 'success');
+    } catch (error) {
+      addLog(`Webhookテスト失敗: ${error}`, 'error');
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const getConnectionStatus = () => {
@@ -152,17 +235,17 @@ function App() {
       </main>
 
       <footer className="footer">
-        <button className="btn btn-secondary" onClick={() => setShowSettings(true)}>
+        <button className="btn btn-secondary" onClick={handleOpenSettings}>
           ⚙️ 設定
         </button>
         <div style={{ display: 'flex', gap: 8 }}>
           {status.isRunning ? (
-            <button className="btn btn-danger" onClick={handleStop}>
-              ⏹ 停止
+            <button className="btn btn-danger" onClick={handleStop} disabled={isLoading}>
+              {isLoading ? '処理中...' : '⏹ 停止'}
             </button>
           ) : (
-            <button className="btn btn-primary" onClick={handleStart}>
-              ▶️ 開始
+            <button className="btn btn-primary" onClick={handleStart} disabled={isLoading}>
+              {isLoading ? '処理中...' : '▶️ 開始'}
             </button>
           )}
         </div>
@@ -219,6 +302,14 @@ function App() {
                     placeholder="https://open.larksuite.com/..."
                   />
                 </div>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleTestWebhook}
+                  disabled={isTesting || !config.larkWebhookUrl}
+                  style={{ marginTop: 8 }}
+                >
+                  {isTesting ? 'テスト中...' : '🧪 テスト送信'}
+                </button>
               </div>
             </div>
 
@@ -228,12 +319,10 @@ function App() {
               </button>
               <button
                 className="btn btn-primary"
-                onClick={() => {
-                  addLog('設定を保存しました', 'success');
-                  setShowSettings(false);
-                }}
+                onClick={handleSaveConfig}
+                disabled={isLoading}
               >
-                保存
+                {isLoading ? '保存中...' : '保存'}
               </button>
             </div>
           </div>
