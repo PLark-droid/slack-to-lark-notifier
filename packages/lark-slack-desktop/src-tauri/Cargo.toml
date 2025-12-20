@@ -1,6 +1,6 @@
 [package]
 name = "lark-slack-desktop"
-version = "0.1.4"
+version = "0.1.5"
 description = "Lark-Slack Connector Desktop App"
 authors = ["PLark-droid"]
 license = "MIT"
