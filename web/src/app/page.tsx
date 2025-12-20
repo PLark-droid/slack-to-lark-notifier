@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Header from "@/components/Header";
 
 type SetupMode = "basic" | "advanced" | null;
 
@@ -10,22 +11,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-3">
-            <div className="text-3xl">🔔</div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Slack to Lark Notifier
-              </h1>
-              <p className="text-sm text-gray-500">
-                Slackのメッセージを自動的にLarkへ転送
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Mode Selection */}
