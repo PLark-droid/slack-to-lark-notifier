@@ -7,10 +7,21 @@ export const SlackWorkspaceSchema = z.object({
   botToken: z.string().min(1, 'Slack bot token is required'),
   signingSecret: z.string().min(1, 'Slack signing secret is required'),
   appToken: z.string().optional(), // For Socket Mode
-  userToken: z.string().optional(), // For Slack Connect
+  userToken: z.string().optional(), // For Slack Connect and sending as user
+});
+
+// Sender configuration for messages
+export const SenderConfigSchema = z.object({
+  // Use user token instead of bot token for sending
+  sendAsUser: z.boolean().default(false),
+  // Slack user token for sending as specific user
+  slackUserToken: z.string().optional(),
+  // Lark user access token (if available)
+  larkUserAccessToken: z.string().optional(),
 });
 
 export type SlackWorkspace = z.infer<typeof SlackWorkspaceSchema>;
+export type SenderConfig = z.infer<typeof SenderConfigSchema>;
 
 // Lark Configuration
 export const LarkConfigSchema = z.object({
@@ -55,6 +66,9 @@ export const BridgeConfigSchema = z.object({
   // Lark settings
   lark: LarkConfigSchema,
 
+  // Sender settings (for sending as specific user)
+  sender: SenderConfigSchema.optional(),
+
   // Channel mappings
   channelMappings: z.array(ChannelMappingSchema).optional(),
 
@@ -75,6 +89,9 @@ export const BridgeConfigSchema = z.object({
     // Polling for Slack Connect
     slackConnectPolling: z.boolean().default(false),
     pollingIntervalMs: z.number().default(5000),
+
+    // Default Slack channel for Lark→Slack messages (when no mapping found)
+    defaultSlackChannel: z.string().optional(),
 
     // Retry settings
     maxRetries: z.number().default(3),

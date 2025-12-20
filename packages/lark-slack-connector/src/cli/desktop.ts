@@ -17,10 +17,14 @@ interface DesktopConfig {
   slackBotToken: string;
   slackAppToken: string;
   slackSigningSecret?: string;
+  slackUserToken?: string; // For sending as user (松井大樹)
   larkWebhookUrl: string;
   larkAppId?: string;
   larkAppSecret?: string;
   serverPort?: number;
+  // Bidirectional settings
+  sendAsUser?: boolean; // Send messages as user instead of bot
+  defaultSlackChannel?: string; // Default channel for Lark→Slack
 }
 
 function sendStatus(status: BridgeStatus): void {
@@ -103,6 +107,7 @@ function createBridgeConfig(desktop: DesktopConfig): BridgeConfig {
           botToken: desktop.slackBotToken,
           signingSecret: desktop.slackSigningSecret || 'dummy-signing-secret',
           appToken: desktop.slackAppToken,
+          userToken: desktop.slackUserToken,
         },
       ],
       socketMode: true,
@@ -112,6 +117,11 @@ function createBridgeConfig(desktop: DesktopConfig): BridgeConfig {
       appId: desktop.larkAppId,
       appSecret: desktop.larkAppSecret,
     },
+    // Sender configuration for bidirectional messaging
+    sender: {
+      sendAsUser: desktop.sendAsUser ?? true, // Default to sending as user
+      slackUserToken: desktop.slackUserToken,
+    },
     options: {
       includeChannelName: true,
       includeUserName: true,
@@ -120,6 +130,7 @@ function createBridgeConfig(desktop: DesktopConfig): BridgeConfig {
       includeThreadReplies: true,
       slackConnectPolling: false,
       pollingIntervalMs: 5000,
+      defaultSlackChannel: desktop.defaultSlackChannel,
       maxRetries: 3,
       retryDelayMs: 1000,
       logLevel: 'info',
