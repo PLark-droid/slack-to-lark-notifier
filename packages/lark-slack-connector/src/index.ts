@@ -8,6 +8,10 @@ export type { SlackClientOptions } from './slack';
 export { LarkClient } from './lark';
 export type { LarkClientOptions } from './lark';
 
+// Server exports
+export { BridgeServer, startBridgeServer } from './server';
+export type { ServerOptions, BridgeServerEvents } from './server';
+
 // Config exports
 export { parseConfig, configFromEnv, validateConfig } from './config';
 

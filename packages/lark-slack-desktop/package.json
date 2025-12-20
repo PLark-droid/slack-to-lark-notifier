@@ -1,6 +1,6 @@
 {
   "name": "lark-slack-desktop",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Lark-Slack Connector Desktop App",
   "private": true,
   "type": "module",

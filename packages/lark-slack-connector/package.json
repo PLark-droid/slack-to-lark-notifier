@@ -13,7 +13,8 @@
     }
   },
   "bin": {
-    "lark-slack-connector": "./dist/cli/index.js"
+    "lark-slack-connector": "./dist/cli/index.js",
+    "lark-slack-desktop": "./dist/cli/desktop.js"
   },
   "files": [
     "dist",

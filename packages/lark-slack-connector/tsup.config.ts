@@ -17,6 +17,7 @@ export default defineConfig([
   {
     entry: {
       'cli/index': 'src/cli/index.ts',
+      'cli/desktop': 'src/cli/desktop.ts',
     },
     format: ['cjs'],
     dts: true,

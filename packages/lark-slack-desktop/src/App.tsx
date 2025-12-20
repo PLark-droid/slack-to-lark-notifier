@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 interface BridgeStatus {
   isRunning: boolean;
@@ -8,6 +8,7 @@ interface BridgeStatus {
     slackToLark: number;
     larkToSlack: number;
   };
+  serverPort?: number;
 }
 
 interface LogEntry {
@@ -19,11 +20,13 @@ interface LogEntry {
 interface Config {
   slackBotToken: string;
   slackAppToken: string;
+  slackSigningSecret: string;
   larkWebhookUrl: string;
 }
 
 // Tauri invoke wrapper - lazy loaded on first use
 let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+let tauriListen: ((event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>) | null = null;
 
 const invoke = async <T,>(cmd: string, args?: Record<string, unknown>): Promise<T> => {
   if (!tauriInvoke) {
@@ -35,6 +38,18 @@ const invoke = async <T,>(cmd: string, args?: Record<string, unknown>): Promise<
     }
   }
   return tauriInvoke(cmd, args) as Promise<T>;
+};
+
+const listen = async (event: string, handler: (event: { payload: unknown }) => void): Promise<() => void> => {
+  if (!tauriListen) {
+    try {
+      const eventModule = await import('@tauri-apps/api/event');
+      tauriListen = eventModule.listen;
+    } catch {
+      throw new Error('Tauri not available');
+    }
+  }
+  return tauriListen(event, handler);
 };
 
 function App() {
@@ -51,18 +66,86 @@ function App() {
   const [config, setConfig] = useState<Config>({
     slackBotToken: '',
     slackAppToken: '',
+    slackSigningSecret: '',
     larkWebhookUrl: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [nodeStatus, setNodeStatus] = useState<'checking' | 'installed' | 'missing'>('checking');
   const configLoaded = useRef(false);
+  const unlistenRefs = useRef<Array<() => void>>([]);
 
-  const addLog = (message: string, type: LogEntry['type']) => {
+  const addLog = useCallback((message: string, type: LogEntry['type']) => {
     const time = new Date().toLocaleTimeString('ja-JP');
     setLogs((prev) => [...prev.slice(-99), { time, message, type }]);
-  };
+  }, []);
+
+  // Set up Tauri event listeners
+  useEffect(() => {
+    const setupListeners = async () => {
+      try {
+        // Check Node.js installation
+        try {
+          await invoke<string>('check_node_installed');
+          setNodeStatus('installed');
+        } catch {
+          setNodeStatus('missing');
+          addLog('Node.jsがインストールされていません', 'error');
+        }
+
+        // Listen for status updates
+        const unlistenStatus = await listen('bridge-status', (event) => {
+          const data = event.payload as BridgeStatus;
+          setStatus(prev => ({
+            ...prev,
+            ...data,
+          }));
+        });
+        unlistenRefs.current.push(unlistenStatus);
+
+        // Listen for log messages
+        const unlistenLog = await listen('bridge-log', (event) => {
+          const data = event.payload as { level: string; message: string };
+          const type = data.level === 'error' ? 'error' : data.level === 'info' ? 'info' : 'info';
+          addLog(data.message, type as LogEntry['type']);
+        });
+        unlistenRefs.current.push(unlistenLog);
+
+        // Listen for errors
+        const unlistenError = await listen('bridge-error', (event) => {
+          const data = event.payload as { error: string };
+          addLog(data.error, 'error');
+        });
+        unlistenRefs.current.push(unlistenError);
+
+        // Listen for ready event
+        const unlistenReady = await listen('bridge-ready', (event) => {
+          const data = event.payload as { port: number };
+          addLog(`Lark Webhook受信サーバー起動 (port: ${data.port})`, 'success');
+        });
+        unlistenRefs.current.push(unlistenReady);
+
+      } catch (error) {
+        // Running outside Tauri (development mode)
+        console.log('Running in browser mode:', error);
+        setNodeStatus('installed'); // Assume installed in dev mode
+      }
+    };
+
+    setupListeners();
+
+    return () => {
+      unlistenRefs.current.forEach(unlisten => unlisten());
+      unlistenRefs.current = [];
+    };
+  }, [addLog]);
 
   const handleStart = async () => {
+    if (nodeStatus === 'missing') {
+      addLog('Node.jsをインストールしてください', 'error');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const newStatus = await invoke<BridgeStatus>('start_bridge');
@@ -70,13 +153,6 @@ function App() {
       addLog('ブリッジを起動しました', 'success');
     } catch (error) {
       addLog(`起動エラー: ${error}`, 'error');
-      // Fallback to local state
-      setStatus(prev => ({
-        ...prev,
-        isRunning: true,
-        slackConnected: true,
-        larkConnected: true,
-      }));
     } finally {
       setIsLoading(false);
     }
@@ -90,13 +166,6 @@ function App() {
       addLog('ブリッジを停止しました', 'info');
     } catch (error) {
       addLog(`停止エラー: ${error}`, 'error');
-      // Fallback to local state
-      setStatus(prev => ({
-        ...prev,
-        isRunning: false,
-        slackConnected: false,
-        larkConnected: false,
-      }));
     } finally {
       setIsLoading(false);
     }
@@ -174,11 +243,25 @@ function App() {
       </header>
 
       <main className="main">
+        {nodeStatus === 'missing' && (
+          <div className="card" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ef4444' }}>
+              <span>⚠️</span>
+              <div>
+                <strong>Node.js が必要です</strong>
+                <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>
+                  ブリッジ機能を使用するには Node.js (v18以上) をインストールしてください
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">📊 統計</h2>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              稼働時間: -
+              {status.serverPort ? `ローカルサーバー: port ${status.serverPort}` : '稼働時間: -'}
             </span>
           </div>
           <div className="stats-grid">
@@ -200,7 +283,7 @@ function App() {
               <span className="connection-icon">💬</span>
               <div>
                 <div className="connection-name">Slack</div>
-                <div className="connection-detail">Socket Mode</div>
+                <div className="connection-detail">Socket Mode (リアルタイム受信)</div>
               </div>
             </div>
             <span className="connection-status">
@@ -212,7 +295,7 @@ function App() {
               <span className="connection-icon">🐦</span>
               <div>
                 <div className="connection-name">Lark</div>
-                <div className="connection-detail">Webhook</div>
+                <div className="connection-detail">Webhook (送信 + 受信サーバー)</div>
               </div>
             </div>
             <span className="connection-status">
@@ -244,7 +327,11 @@ function App() {
               {isLoading ? '処理中...' : '⏹ 停止'}
             </button>
           ) : (
-            <button className="btn btn-primary" onClick={handleStart} disabled={isLoading}>
+            <button
+              className="btn btn-primary"
+              onClick={handleStart}
+              disabled={isLoading || nodeStatus === 'missing'}
+            >
               {isLoading ? '処理中...' : '▶️ 開始'}
             </button>
           )}
@@ -286,6 +373,19 @@ function App() {
                     placeholder="xapp-..."
                   />
                 </div>
+                <div className="form-group">
+                  <label className="form-label">Signing Secret (オプション)</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    value={config.slackSigningSecret}
+                    onChange={(e) => setConfig(prev => ({ ...prev, slackSigningSecret: e.target.value }))}
+                    placeholder="Signing Secret..."
+                  />
+                  <small style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+                    Slack App設定ページの「Basic Information」→「Signing Secret」
+                  </small>
+                </div>
               </div>
 
               <div>
@@ -310,6 +410,18 @@ function App() {
                 >
                   {isTesting ? 'テスト中...' : '🧪 テスト送信'}
                 </button>
+              </div>
+
+              <div style={{ marginTop: 20, padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8 }}>
+                <h4 style={{ fontSize: 12, marginBottom: 8, color: 'var(--accent)' }}>
+                  📌 双方向通信について
+                </h4>
+                <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  <strong>Slack → Lark:</strong> Socket Mode で自動受信<br />
+                  <strong>Lark → Slack:</strong>
+                  ローカルサーバー (port 3456) が起動します。
+                  Larkの「Webhook設定」で <code>http://your-ip:3456/lark/webhook</code> を設定してください。
+                </p>
               </div>
             </div>
 
