@@ -1,0 +1,105 @@
+# Miyabi Project Configuration
+# Generated: 2025-12-20
+# Version: 0.6.0
+
+project:
+  name: slack-to-lark-notifier
+  description: SlackからLarkへのメッセージ通知システム
+  version: 0.1.0
+
+# GitHub連携設定
+github:
+  repository: PLark-droid/slack-to-lark-notifier
+  default_branch: main
+
+  # Issue設定
+  issues:
+    auto_label: true
+    auto_assign: true
+    templates:
+      - feature
+      - bug
+      - task
+
+  # Pull Request設定
+  pull_requests:
+    auto_review: true
+    require_approval: 1
+    merge_method: squash
+
+# Agent設定
+agents:
+  coordinator:
+    enabled: true
+    max_parallel_tasks: 3
+    timeout: 300
+
+  codegen:
+    enabled: true
+    model: claude-sonnet-4-20250514
+    auto_test: true
+
+  review:
+    enabled: true
+    security_scan: true
+    quality_threshold: 0.8
+
+  pr:
+    enabled: true
+    auto_draft: true
+    conventional_commits: true
+
+  issue:
+    enabled: true
+    auto_classify: true
+    label_system: organizational-design-65
+
+# ラベル体系
+labels:
+  system: organizational-design-65
+  categories:
+    - urgency      # 緊急度-高/中/低/即時
+    - scale        # 規模-小/中/大/特大
+    - type         # type:feature/bug/refactor/docs
+    - status       # status:backlog/in-progress/review
+    - owner        # owner:tech-lead/po/ciso
+    - escalation   # escalation:tech-lead/ciso
+    - phase        # Phase 1-5
+
+# CI/CD設定
+ci:
+  typecheck: true
+  lint: true
+  test: true
+  build: true
+
+cd:
+  platform: firebase
+  auto_deploy: false
+  environments:
+    - staging
+    - production
+
+# Claude Code統合
+claude:
+  mcp_servers:
+    - github
+    - miyabi
+  hooks:
+    pre_commit: format
+    post_commit: notify
+
+# 自動化設定
+automation:
+  water_spider:
+    enabled: false
+    interval: 300
+    max_issues_per_run: 5
+
+  daily_report:
+    enabled: false
+    schedule: "0 9 * * 1-5"
+
+  security_scan:
+    enabled: true
+    schedule: "0 0 * * 0"

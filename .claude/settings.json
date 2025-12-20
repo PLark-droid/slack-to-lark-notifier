@@ -5,11 +5,16 @@
       "Bash(npx:*)",
       "Bash(git:*)",
       "Bash(gh:*)",
+      "Bash(node:*)",
+      "Bash(tsx:*)",
       "Read",
       "Write",
       "Edit",
       "Glob",
-      "Grep"
+      "Grep",
+      "WebSearch",
+      "WebFetch",
+      "Task"
     ],
     "deny": []
   },
