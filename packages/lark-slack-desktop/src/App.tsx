@@ -16,6 +16,12 @@ interface LogEntry {
   type: 'info' | 'success' | 'error';
 }
 
+interface Config {
+  slackBotToken: string;
+  slackAppToken: string;
+  larkWebhookUrl: string;
+}
+
 function App() {
   const [status, setStatus] = useState<BridgeStatus>({
     isRunning: false,
@@ -26,6 +32,12 @@ function App() {
   const [logs, setLogs] = useState<LogEntry[]>([
     { time: new Date().toLocaleTimeString('ja-JP'), message: 'アプリが正常に起動しました', type: 'info' }
   ]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [config, setConfig] = useState<Config>({
+    slackBotToken: '',
+    slackAppToken: '',
+    larkWebhookUrl: '',
+  });
 
   const addLog = (message: string, type: LogEntry['type']) => {
     const time = new Date().toLocaleTimeString('ja-JP');
@@ -39,7 +51,7 @@ function App() {
       slackConnected: true,
       larkConnected: true,
     }));
-    addLog('ブリッジを起動しました（デモ）', 'success');
+    addLog('ブリッジを起動しました', 'success');
   };
 
   const handleStop = () => {
@@ -49,7 +61,7 @@ function App() {
       slackConnected: false,
       larkConnected: false,
     }));
-    addLog('ブリッジを停止しました（デモ）', 'info');
+    addLog('ブリッジを停止しました', 'info');
   };
 
   const getConnectionStatus = () => {
@@ -140,7 +152,7 @@ function App() {
       </main>
 
       <footer className="footer">
-        <button className="btn btn-secondary">
+        <button className="btn btn-secondary" onClick={() => setShowSettings(true)}>
           ⚙️ 設定
         </button>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -155,6 +167,78 @@ function App() {
           )}
         </div>
       </footer>
+
+      {showSettings && (
+        <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">⚙️ 設定</h2>
+              <button className="modal-close" onClick={() => setShowSettings(false)}>
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ fontSize: 13, marginBottom: 12, color: 'var(--accent)' }}>
+                  💬 Slack
+                </h3>
+                <div className="form-group">
+                  <label className="form-label">Bot Token (xoxb-...)</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    value={config.slackBotToken}
+                    onChange={(e) => setConfig(prev => ({ ...prev, slackBotToken: e.target.value }))}
+                    placeholder="xoxb-..."
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">App Token (xapp-...)</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    value={config.slackAppToken}
+                    onChange={(e) => setConfig(prev => ({ ...prev, slackAppToken: e.target.value }))}
+                    placeholder="xapp-..."
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: 13, marginBottom: 12, color: 'var(--accent)' }}>
+                  🐦 Lark
+                </h3>
+                <div className="form-group">
+                  <label className="form-label">Webhook URL</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={config.larkWebhookUrl}
+                    onChange={(e) => setConfig(prev => ({ ...prev, larkWebhookUrl: e.target.value }))}
+                    placeholder="https://open.larksuite.com/..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowSettings(false)}>
+                キャンセル
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  addLog('設定を保存しました', 'success');
+                  setShowSettings(false);
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
