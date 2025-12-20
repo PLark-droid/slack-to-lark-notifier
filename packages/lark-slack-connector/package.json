@@ -1,0 +1,76 @@
+{
+  "name": "lark-slack-connector",
+  "version": "0.1.0",
+  "description": "Bidirectional message bridge between Slack and Lark",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "lark-slack-connector": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "slack",
+    "lark",
+    "feishu",
+    "bridge",
+    "connector",
+    "integration",
+    "chat",
+    "messaging",
+    "webhook"
+  ],
+  "author": "PLark-droid",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PLark-droid/slack-to-lark-notifier.git",
+    "directory": "packages/lark-slack-connector"
+  },
+  "bugs": {
+    "url": "https://github.com/PLark-droid/slack-to-lark-notifier/issues"
+  },
+  "homepage": "https://github.com/PLark-droid/slack-to-lark-notifier/tree/main/packages/lark-slack-connector#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.55.0",
+    "@slack/bolt": "^3.17.0",
+    "@slack/web-api": "^7.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "dotenv": ">=16.0.0"
+  },
+  "peerDependenciesMeta": {
+    "dotenv": {
+      "optional": true
+    }
+  }
+}
