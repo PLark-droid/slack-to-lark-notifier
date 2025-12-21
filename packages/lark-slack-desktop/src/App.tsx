@@ -21,13 +21,17 @@ interface Config {
   slackBotToken: string;
   slackAppToken: string;
   slackSigningSecret: string;
-  slackUserToken: string; // For sending as user (松井大樹)
+  slackUserToken: string;
   larkWebhookUrl: string;
   larkAppId: string;
   larkAppSecret: string;
   // Bidirectional settings
   sendAsUser: boolean;
   defaultSlackChannel: string;
+  // OAuth credentials
+  slackClientId: string;
+  slackClientSecret: string;
+  slackUserName: string;
 }
 
 // Tauri invoke wrapper - lazy loaded on first use
@@ -79,7 +83,13 @@ function App() {
     larkAppSecret: '',
     sendAsUser: true,
     defaultSlackChannel: '',
+    slackClientId: '',
+    slackClientSecret: '',
+    slackUserName: '',
   });
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [hasOAuthCredentials, setHasOAuthCredentials] = useState(false);
+  const [workerStatus, setWorkerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [nodeStatus, setNodeStatus] = useState<'checking' | 'installed' | 'missing'>('checking');
@@ -193,6 +203,15 @@ function App() {
         // Use default config if load fails
       }
     }
+    // Check if OAuth credentials are available (embedded or in config)
+    try {
+      const hasCredentials = await invoke<boolean>('has_oauth_credentials');
+      setHasOAuthCredentials(hasCredentials);
+    } catch {
+      setHasOAuthCredentials(false);
+    }
+    // Check OAuth Worker status
+    await checkWorkerStatus();
     setShowSettings(true);
   };
 
@@ -224,6 +243,67 @@ function App() {
       addLog(`Webhookテスト失敗: ${error}`, 'error');
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const checkWorkerStatus = useCallback(async () => {
+    try {
+      await invoke<string>('check_oauth_worker_status');
+      setWorkerStatus('online');
+      return true;
+    } catch {
+      setWorkerStatus('offline');
+      return false;
+    }
+  }, []);
+
+  const handleSlackAuth = async () => {
+    // Check if credentials are available (embedded or in config)
+    const hasCredentials = await invoke<boolean>('has_oauth_credentials').catch(() => false);
+
+    if (!hasCredentials) {
+      addLog('Slack認証情報が設定されていません。管理者に連絡してください。', 'error');
+      return;
+    }
+
+    // Save config first (in case user made changes to other fields)
+    try {
+      await invoke('save_config', { config });
+    } catch (error) {
+      addLog(`設定保存エラー: ${error}`, 'error');
+      return;
+    }
+
+    setIsAuthenticating(true);
+    addLog('Slack認証を開始...', 'info');
+
+    try {
+      // Start OAuth flow - this opens the browser
+      const result = await invoke<string>('start_slack_oauth');
+      const [stateToken, redirectUri] = result.split('|');
+
+      addLog('ブラウザで認証してください...', 'info');
+      addLog('認証完了を待機中（最大2分）...', 'info');
+
+      // Wait for the callback (poll worker for auth code)
+      const userName = await invoke<string>('complete_slack_oauth', { stateToken, redirectUri });
+
+      setConfig(prev => ({
+        ...prev,
+        slackUserName: userName,
+        sendAsUser: true,
+      }));
+
+      addLog(`認証成功: ${userName}`, 'success');
+
+      // Reload config to get the updated user token
+      const savedConfig = await invoke<Config>('get_config');
+      setConfig(savedConfig);
+
+    } catch (error) {
+      addLog(`認証エラー: ${error}`, 'error');
+    } finally {
+      setIsAuthenticating(false);
     }
   };
 
@@ -445,21 +525,141 @@ function App() {
 
               <div style={{ marginTop: 20 }}>
                 <h3 style={{ fontSize: 13, marginBottom: 12, color: 'var(--accent)' }}>
+                  🔐 Slack認証
+                </h3>
+
+                {/* OAuth Worker状態表示 */}
+                <div style={{
+                  padding: 12,
+                  background: workerStatus === 'online' ? 'rgba(34, 197, 94, 0.1)' : workerStatus === 'checking' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  borderRadius: 8,
+                  marginBottom: 12,
+                  border: `1px solid ${workerStatus === 'online' ? 'rgba(34, 197, 94, 0.3)' : workerStatus === 'checking' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>{workerStatus === 'online' ? '☁️' : workerStatus === 'checking' ? '🔄' : '⚠️'}</span>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: workerStatus === 'online' ? '#22c55e' : workerStatus === 'checking' ? '#3b82f6' : '#ef4444' }}>
+                          OAuth Server: {workerStatus === 'online' ? 'オンライン' : workerStatus === 'checking' ? '確認中...' : 'オフライン'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                          {workerStatus === 'online' ? 'ngrok不要で認証できます' : workerStatus === 'checking' ? '' : 'サーバーに接続できません'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={checkWorkerStatus}
+                      style={{ padding: '4px 8px', fontSize: 11 }}
+                    >
+                      🔄
+                    </button>
+                  </div>
+                </div>
+
+                {/* OAuth認証済みユーザー表示 */}
+                {config.slackUserName ? (
+                  <div style={{
+                    padding: 12,
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    border: '1px solid rgba(34, 197, 94, 0.3)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>✅</span>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#22c55e' }}>認証済み</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          {config.slackUserName} として送信します
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: 12,
+                    background: 'rgba(251, 191, 36, 0.1)',
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    border: '1px solid rgba(251, 191, 36, 0.3)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>⚠️</span>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#f59e0b' }}>未認証</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          「Slackで認証」をクリックして認証してください
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSlackAuth}
+                  disabled={isAuthenticating || workerStatus !== 'online'}
+                  style={{ width: '100%', marginTop: 8 }}
+                >
+                  {isAuthenticating ? '認証中...' : config.slackUserName ? '🔄 再認証' : '🔐 Slackで認証'}
+                </button>
+
+                {/* 管理者設定: Client ID/Secret (認証情報が未設定の場合のみ表示) */}
+                {!hasOAuthCredentials && (
+                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                    <h4 style={{ fontSize: 12, marginBottom: 8, color: 'var(--text-secondary)' }}>
+                      🔧 管理者設定 (初回のみ)
+                    </h4>
+                    <div className="form-group">
+                      <label className="form-label">Client ID</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={config.slackClientId}
+                        onChange={(e) => setConfig(prev => ({ ...prev, slackClientId: e.target.value }))}
+                        placeholder="Slack App の Client ID"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Client Secret</label>
+                      <input
+                        type="password"
+                        className="form-input"
+                        value={config.slackClientSecret}
+                        onChange={(e) => setConfig(prev => ({ ...prev, slackClientSecret: e.target.value }))}
+                        placeholder="Slack App の Client Secret"
+                      />
+                      <small style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+                        Slack API Console → Basic Information
+                      </small>
+                    </div>
+                  </div>
+                )}
+
+                {/* 手動トークン設定 (折りたたみ) */}
+                <details style={{ marginTop: 16 }}>
+                  <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                    手動でトークンを設定
+                  </summary>
+                  <div className="form-group" style={{ marginTop: 8 }}>
+                    <label className="form-label">User Token (xoxp-...)</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      value={config.slackUserToken}
+                      onChange={(e) => setConfig(prev => ({ ...prev, slackUserToken: e.target.value }))}
+                      placeholder="xoxp-..."
+                    />
+                  </div>
+                </details>
+              </div>
+
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ fontSize: 13, marginBottom: 12, color: 'var(--accent)' }}>
                   🔄 双方向通信設定
                 </h3>
-                <div className="form-group">
-                  <label className="form-label">Slack User Token (松井大樹アカウント用)</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    value={config.slackUserToken}
-                    onChange={(e) => setConfig(prev => ({ ...prev, slackUserToken: e.target.value }))}
-                    placeholder="xoxp-..."
-                  />
-                  <small style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
-                    Lark→Slackの送信時、このアカウントで送信されます
-                  </small>
-                </div>
                 <div className="form-group">
                   <label className="form-label">デフォルトSlackチャンネル (Lark→Slack)</label>
                   <input
@@ -481,7 +681,8 @@ function App() {
                     onChange={(e) => setConfig(prev => ({ ...prev, sendAsUser: e.target.checked }))}
                   />
                   <label htmlFor="sendAsUser" style={{ fontSize: 12 }}>
-                    ユーザーアカウント（松井大樹）として送信
+                    ユーザーアカウントとして送信
+                    {config.slackUserName && ` (${config.slackUserName})`}
                   </label>
                 </div>
               </div>
