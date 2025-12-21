@@ -121,8 +121,8 @@ export class LarkClient {
    * Supports both v1 and v2 event formats
    */
   async handleEvent(event: Record<string, unknown>): Promise<void> {
-    // Log incoming event for debugging
-    this.log('debug', `Received Lark event: ${JSON.stringify(event).slice(0, 200)}...`);
+    // Log incoming event for debugging (use info level to ensure visibility)
+    this.log('info', `Received Lark event: ${JSON.stringify(event).slice(0, 300)}...`);
 
     // Verify event if verification token is configured (v1 format)
     if (this.config.verificationToken && event.token) {
@@ -160,7 +160,7 @@ export class LarkClient {
     }
 
     const eventType = header.event_type as string;
-    this.log('debug', `Processing v2 event type: ${eventType}`);
+    this.log('info', `Processing v2 event type: ${eventType}`);
 
     // Handle message events
     if (eventType === 'im.message.receive_v1') {
@@ -200,10 +200,15 @@ export class LarkClient {
       };
 
       this.log('info', `Received Lark message from ${senderName || senderIdValue || 'unknown'}: ${larkMessage.content.slice(0, 50)}...`);
+      this.log('info', `Message handlers count: ${this.messageHandlers.length}`);
 
       for (const handler of this.messageHandlers) {
+        this.log('info', 'Calling message handler...');
         await handler(larkMessage);
+        this.log('info', 'Message handler completed');
       }
+    } else {
+      this.log('info', `Ignoring non-message event type: ${eventType}`);
     }
   }
 

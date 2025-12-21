@@ -111,32 +111,42 @@ export class LarkSlackBridge extends EventEmitter {
   }
 
   private async handleLarkMessage(message: LarkMessage): Promise<void> {
+    this.log('info', `[handleLarkMessage] Received message from Lark: ${message.content.slice(0, 50)}...`);
     this.emitEvent('lark:message', { message });
 
     // Find channel mapping or use default channel
     const mapping = this.findChannelMapping(message.chatId, 'lark-to-slack');
     const defaultChannel = this.config.options?.defaultSlackChannel;
 
+    this.log('info', `[handleLarkMessage] chatId: ${message.chatId}, mapping: ${mapping?.slackChannel}, defaultChannel: ${defaultChannel}`);
+
     const targetChannel = mapping?.slackChannel || defaultChannel;
 
     if (!targetChannel) {
-      this.log('debug', `No mapping or default channel for Lark chat: ${message.chatId}`);
+      this.log('warn', `[handleLarkMessage] No mapping or default channel for Lark chat: ${message.chatId}. Please set defaultSlackChannel.`);
       return;
     }
 
     try {
       const formattedMessage = this.formatLarkToSlack(message);
+      this.log('info', `[handleLarkMessage] Formatted message: ${formattedMessage.slice(0, 100)}...`);
+
       const slackClient = this.slackClients.values().next().value as SlackClient | undefined;
 
       if (slackClient) {
         // Send as user if configured (松井大樹アカウントで送信)
         const sendAsUser = this.config.sender?.sendAsUser ?? false;
-        if (sendAsUser && slackClient.hasUserToken()) {
+        const hasUserToken = slackClient.hasUserToken();
+        this.log('info', `[handleLarkMessage] sendAsUser: ${sendAsUser}, hasUserToken: ${hasUserToken}`);
+
+        if (sendAsUser && hasUserToken) {
+          this.log('info', `[handleLarkMessage] Sending to Slack as user to channel: ${targetChannel}`);
           await slackClient.sendMessageAsUser(targetChannel, formattedMessage);
-          this.log('info', `Forwarded Lark message to Slack as user: ${targetChannel}`);
+          this.log('info', `[handleLarkMessage] Successfully forwarded Lark message to Slack as user: ${targetChannel}`);
         } else {
+          this.log('info', `[handleLarkMessage] Sending to Slack as bot to channel: ${targetChannel}`);
           await slackClient.sendMessage(targetChannel, formattedMessage);
-          this.log('info', `Forwarded Lark message to Slack: ${targetChannel}`);
+          this.log('info', `[handleLarkMessage] Successfully forwarded Lark message to Slack: ${targetChannel}`);
         }
 
         this.stats.larkToSlack++;
@@ -145,6 +155,8 @@ export class LarkSlackBridge extends EventEmitter {
           message,
           targetChannel,
         });
+      } else {
+        this.log('error', '[handleLarkMessage] No Slack client available');
       }
     } catch (error) {
       this.stats.errors++;
@@ -153,7 +165,7 @@ export class LarkSlackBridge extends EventEmitter {
         message,
         error,
       });
-      this.log('error', `Failed to forward Lark message: ${error}`);
+      this.log('error', `[handleLarkMessage] Failed to forward Lark message: ${error}`);
     }
   }
 
