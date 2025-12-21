@@ -1,0 +1,32 @@
+# Cloudflare Worker configuration for Lark-Slack OAuth Proxy
+#
+# Setup instructions:
+# 1. Install wrangler: npm install -g wrangler
+# 2. Login: wrangler login
+# 3. Create KV namespace: wrangler kv:namespace create OAUTH_CODES
+# 4. Update the kv_namespaces id below with the output from step 3
+# 5. Deploy: wrangler deploy
+
+name = "lark-slack-oauth"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# KV namespace for storing OAuth codes temporarily
+# After running: wrangler kv:namespace create OAUTH_CODES
+# Replace <YOUR_KV_NAMESPACE_ID> with the actual ID
+[[kv_namespaces]]
+binding = "OAUTH_CODES"
+id = "<YOUR_KV_NAMESPACE_ID>"
+
+# For local development with wrangler dev
+# Run: wrangler kv:namespace create OAUTH_CODES --preview
+# [[kv_namespaces]]
+# binding = "OAUTH_CODES"
+# id = "<YOUR_KV_NAMESPACE_ID>"
+# preview_id = "<YOUR_PREVIEW_KV_NAMESPACE_ID>"
+
+# Custom domain (optional)
+# If you want to use a custom domain like oauth.yourdomain.com
+# routes = [
+#   { pattern = "oauth.yourdomain.com/*", zone_name = "yourdomain.com" }
+# ]

@@ -20,6 +20,7 @@ dirs = "5"
 which = "6"
 open = "5"
 urlencoding = "2"
+uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = ["custom-protocol"]

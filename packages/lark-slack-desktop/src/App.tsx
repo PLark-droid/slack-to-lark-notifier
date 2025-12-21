@@ -89,6 +89,7 @@ function App() {
   });
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [hasOAuthCredentials, setHasOAuthCredentials] = useState(false);
+  const [workerStatus, setWorkerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [nodeStatus, setNodeStatus] = useState<'checking' | 'installed' | 'missing'>('checking');
@@ -209,6 +210,8 @@ function App() {
     } catch {
       setHasOAuthCredentials(false);
     }
+    // Check OAuth Worker status
+    await checkWorkerStatus();
     setShowSettings(true);
   };
 
@@ -243,6 +246,17 @@ function App() {
     }
   };
 
+  const checkWorkerStatus = useCallback(async () => {
+    try {
+      await invoke<string>('check_oauth_worker_status');
+      setWorkerStatus('online');
+      return true;
+    } catch {
+      setWorkerStatus('offline');
+      return false;
+    }
+  }, []);
+
   const handleSlackAuth = async () => {
     // Check if credentials are available (embedded or in config)
     const hasCredentials = await invoke<boolean>('has_oauth_credentials').catch(() => false);
@@ -266,13 +280,13 @@ function App() {
     try {
       // Start OAuth flow - this opens the browser
       const result = await invoke<string>('start_slack_oauth');
-      const [portStr] = result.split('|');
-      const port = parseInt(portStr, 10);
+      const [stateToken, redirectUri] = result.split('|');
 
       addLog('ブラウザで認証してください...', 'info');
+      addLog('認証完了を待機中（最大2分）...', 'info');
 
-      // Wait for the callback
-      const userName = await invoke<string>('complete_slack_oauth', { port });
+      // Wait for the callback (poll worker for auth code)
+      const userName = await invoke<string>('complete_slack_oauth', { stateToken, redirectUri });
 
       setConfig(prev => ({
         ...prev,
@@ -514,6 +528,36 @@ function App() {
                   🔐 Slack認証
                 </h3>
 
+                {/* OAuth Worker状態表示 */}
+                <div style={{
+                  padding: 12,
+                  background: workerStatus === 'online' ? 'rgba(34, 197, 94, 0.1)' : workerStatus === 'checking' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  borderRadius: 8,
+                  marginBottom: 12,
+                  border: `1px solid ${workerStatus === 'online' ? 'rgba(34, 197, 94, 0.3)' : workerStatus === 'checking' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>{workerStatus === 'online' ? '☁️' : workerStatus === 'checking' ? '🔄' : '⚠️'}</span>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: workerStatus === 'online' ? '#22c55e' : workerStatus === 'checking' ? '#3b82f6' : '#ef4444' }}>
+                          OAuth Server: {workerStatus === 'online' ? 'オンライン' : workerStatus === 'checking' ? '確認中...' : 'オフライン'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                          {workerStatus === 'online' ? 'ngrok不要で認証できます' : workerStatus === 'checking' ? '' : 'サーバーに接続できません'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={checkWorkerStatus}
+                      style={{ padding: '4px 8px', fontSize: 11 }}
+                    >
+                      🔄
+                    </button>
+                  </div>
+                </div>
+
                 {/* OAuth認証済みユーザー表示 */}
                 {config.slackUserName ? (
                   <div style={{
@@ -556,7 +600,7 @@ function App() {
                 <button
                   className="btn btn-primary"
                   onClick={handleSlackAuth}
-                  disabled={isAuthenticating}
+                  disabled={isAuthenticating || workerStatus !== 'online'}
                   style={{ width: '100%', marginTop: 8 }}
                 >
                   {isAuthenticating ? '認証中...' : config.slackUserName ? '🔄 再認証' : '🔐 Slackで認証'}

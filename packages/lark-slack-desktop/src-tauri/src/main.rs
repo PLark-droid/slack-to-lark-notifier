@@ -4,7 +4,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader};
-use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
@@ -436,12 +435,45 @@ struct SlackUser {
     real_name: Option<String>,
 }
 
-// Fixed port for OAuth callback (must match Slack Redirect URL setting)
-const OAUTH_CALLBACK_PORT: u16 = 9876;
+// OAuth Worker URL - Cloudflare Worker that handles OAuth callbacks
+// This can be overridden at build time via environment variable
+const DEFAULT_OAUTH_WORKER_URL: &str = "https://lark-slack-oauth.plark-droid.workers.dev";
+const EMBEDDED_OAUTH_WORKER_URL: Option<&str> = option_env!("OAUTH_WORKER_URL");
 
-// ngrok URL for OAuth (HTTPS required by Slack)
-// Update this when ngrok restarts with a new URL
-const OAUTH_REDIRECT_HOST: &str = "https://mazelike-patti-nonglacially.ngrok-free.dev";
+fn get_oauth_worker_url() -> String {
+    EMBEDDED_OAUTH_WORKER_URL
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| DEFAULT_OAUTH_WORKER_URL.to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OAuthRetrieveResponse {
+    code: Option<String>,
+    error: Option<String>,
+}
+
+/// Check OAuth Worker status
+#[tauri::command]
+async fn check_oauth_worker_status() -> Result<String, String> {
+    let worker_url = get_oauth_worker_url();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client
+        .get(format!("{}/health", worker_url))
+        .send()
+        .await
+        .map_err(|_| "OAuth Workerに接続できません".to_string())?;
+
+    if response.status().is_success() {
+        Ok(worker_url)
+    } else {
+        Err("OAuth Workerが応答しません".to_string())
+    }
+}
 
 // Embedded Slack OAuth credentials (set at build time via environment variables)
 // These are for the LarkInfo Slack App
@@ -481,15 +513,19 @@ async fn start_slack_oauth(state: State<'_, AppState>) -> Result<String, String>
         return Err("Slack認証情報が設定されていません。管理者に連絡してください。".to_string());
     }
 
-    // Use ngrok URL for OAuth callback (HTTPS required by Slack)
-    let port = OAUTH_CALLBACK_PORT;
-    let redirect_uri = format!("{}/callback", OAUTH_REDIRECT_HOST);
+    // Get OAuth Worker URL
+    let worker_url = get_oauth_worker_url();
+    let redirect_uri = format!("{}/oauth/callback", worker_url);
+
+    // Generate state token for security (prevents CSRF)
+    let state_token = uuid::Uuid::new_v4().to_string();
 
     // Build OAuth URL with user scopes
     let oauth_url = format!(
-        "https://slack.com/oauth/v2/authorize?client_id={}&user_scope=chat:write&redirect_uri={}",
+        "https://slack.com/oauth/v2/authorize?client_id={}&user_scope=chat:write&redirect_uri={}&state={}",
         client_id,
-        urlencoding::encode(&redirect_uri)
+        urlencoding::encode(&redirect_uri),
+        state_token
     );
 
     // Open browser
@@ -497,66 +533,60 @@ async fn start_slack_oauth(state: State<'_, AppState>) -> Result<String, String>
         return Err(format!("ブラウザを開けませんでした: {}", e));
     }
 
-    Ok(format!("{}|{}", port, redirect_uri))
+    // Return state token and redirect_uri for polling
+    Ok(format!("{}|{}", state_token, redirect_uri))
 }
 
 /// Wait for OAuth callback and exchange code for token
+/// Polls the OAuth Worker to retrieve the authorization code
 #[tauri::command]
 async fn complete_slack_oauth(
-    port: u16,
+    state_token: String,
+    redirect_uri: String,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let config = state.config.lock().unwrap().clone();
+    let worker_url = get_oauth_worker_url();
+    let retrieve_url = format!("{}/oauth/retrieve?state={}", worker_url, state_token);
 
-    // Start a simple HTTP server to receive the callback
-    let listener = TcpListener::bind(format!("localhost:{}", port))
-        .map_err(|e| format!("ポート {} でサーバーを起動できません: {}", port, e))?;
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
 
-    listener.set_nonblocking(false).ok();
+    // Poll the worker for up to 120 seconds (2 minutes)
+    let mut code: Option<String> = None;
+    for _ in 0..120 {
+        let response = http_client.get(&retrieve_url).send().await;
 
-    // Wait for the callback (with timeout)
-    let (mut stream, _) = listener.accept()
-        .map_err(|e| format!("接続待機エラー: {}", e))?;
+        match response {
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    let retrieve_response: OAuthRetrieveResponse = resp
+                        .json()
+                        .await
+                        .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
 
-    // Read the HTTP request
-    use std::io::Read;
-    let mut buffer = [0; 4096];
-    let n = stream.read(&mut buffer).map_err(|e| e.to_string())?;
-    let request = String::from_utf8_lossy(&buffer[..n]);
-
-    // Extract the authorization code from the URL
-    let code = request
-        .lines()
-        .next()
-        .and_then(|line| {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 2 {
-                let path = parts[1];
-                if path.starts_with("/callback?") {
-                    let query = &path[10..]; // Remove "/callback?"
-                    for param in query.split('&') {
-                        if let Some(value) = param.strip_prefix("code=") {
-                            return Some(value.to_string());
-                        }
+                    if let Some(c) = retrieve_response.code {
+                        code = Some(c);
+                        break;
                     }
                 }
+                // 404 means code not yet available, continue polling
             }
-            None
-        })
-        .ok_or("認証コードが見つかりませんでした")?;
+            Err(_) => {
+                // Network error, continue polling
+            }
+        }
 
-    // Send a response to the browser
-    use std::io::Write;
-    let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
-        <!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>\
-        <h1>認証成功!</h1><p>このウィンドウを閉じてアプリに戻ってください。</p>\
-        <script>window.close();</script></body></html>";
-    stream.write_all(response.as_bytes()).ok();
-    drop(stream);
+        // Wait 1 second before next poll
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+
+    let code = code.ok_or("認証がタイムアウトしました。再度お試しください。")?;
 
     // Exchange the code for an access token
-    let redirect_uri = format!("{}/callback", OAUTH_REDIRECT_HOST);
     let (client_id, client_secret) = get_oauth_credentials(&config);
     let http_client = reqwest::Client::new();
     let response = http_client
@@ -659,6 +689,7 @@ fn main() {
             test_lark_webhook,
             check_node_installed,
             has_oauth_credentials,
+            check_oauth_worker_status,
             start_slack_oauth,
             complete_slack_oauth,
         ])
