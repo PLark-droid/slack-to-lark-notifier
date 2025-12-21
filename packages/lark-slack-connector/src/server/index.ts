@@ -150,12 +150,14 @@ export class BridgeServer {
       // Lark webhook endpoint
       if (req.method === 'POST' && url === '/lark/webhook') {
         const body = await this.readBody(req);
-        const event = JSON.parse(body);
+        this.events.onLog?.('info', `[Webhook] Received POST /lark/webhook, body length: ${body.length}`);
 
-        this.events.onLog?.('debug', `Lark Webhook受信: ${JSON.stringify(event).slice(0, 100)}...`);
+        const event = JSON.parse(body);
+        this.events.onLog?.('info', `[Webhook] Lark event received: ${JSON.stringify(event).slice(0, 200)}...`);
 
         // Handle the webhook
         const result = await this.bridge.handleLarkWebhook(event);
+        this.events.onLog?.('info', `[Webhook] Webhook processed, result: ${JSON.stringify(result)}`);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result || { code: 0, msg: 'success' }));
