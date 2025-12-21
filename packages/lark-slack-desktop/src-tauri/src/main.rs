@@ -437,7 +437,7 @@ struct SlackUser {
 
 // OAuth Worker URL - Cloudflare Worker that handles OAuth callbacks
 // This can be overridden at build time via environment variable
-const DEFAULT_OAUTH_WORKER_URL: &str = "https://lark-slack-oauth.plark-droid.workers.dev";
+const DEFAULT_OAUTH_WORKER_URL: &str = "https://lark-slack-oauth.hiroki-matsui.workers.dev";
 const EMBEDDED_OAUTH_WORKER_URL: Option<&str> = option_env!("OAUTH_WORKER_URL");
 
 fn get_oauth_worker_url() -> String {

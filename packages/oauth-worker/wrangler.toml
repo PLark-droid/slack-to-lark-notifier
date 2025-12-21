@@ -16,7 +16,7 @@ compatibility_date = "2024-01-01"
 # Replace <YOUR_KV_NAMESPACE_ID> with the actual ID
 [[kv_namespaces]]
 binding = "OAUTH_CODES"
-id = "<YOUR_KV_NAMESPACE_ID>"
+id = "004bd955bb2c45699920ed9334e0134e"
 
 # For local development with wrangler dev
 # Run: wrangler kv:namespace create OAUTH_CODES --preview
