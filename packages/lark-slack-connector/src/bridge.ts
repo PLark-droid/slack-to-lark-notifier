@@ -27,6 +27,10 @@ export class LarkSlackBridge extends EventEmitter {
     larkToSlack: 0,
     errors: 0,
   };
+  // Track processed message IDs to prevent duplicates
+  private processedMessageIds: Set<string> = new Set();
+  // Track messages sent from Lark to Slack to prevent loops
+  private sentToSlackMessages: Set<string> = new Set();
 
   constructor(options: BridgeOptions) {
     super();
@@ -111,6 +115,21 @@ export class LarkSlackBridge extends EventEmitter {
   }
 
   private async handleLarkMessage(message: LarkMessage): Promise<void> {
+    // Check for duplicate messages
+    if (message.messageId && this.processedMessageIds.has(message.messageId)) {
+      this.log('info', `[handleLarkMessage] Skipping duplicate message: ${message.messageId}`);
+      return;
+    }
+
+    // Track this message ID (keep only last 100 to prevent memory leak)
+    if (message.messageId) {
+      this.processedMessageIds.add(message.messageId);
+      if (this.processedMessageIds.size > 100) {
+        const firstId = this.processedMessageIds.values().next().value;
+        if (firstId) this.processedMessageIds.delete(firstId);
+      }
+    }
+
     this.log('info', `[handleLarkMessage] Received message from Lark: ${message.content.slice(0, 50)}...`);
     this.emitEvent('lark:message', { message });
 
@@ -149,6 +168,14 @@ export class LarkSlackBridge extends EventEmitter {
           this.log('info', `[handleLarkMessage] Successfully forwarded Lark message to Slack: ${targetChannel}`);
         }
 
+        // Track this message to prevent loop (Slack→Lark→Slack)
+        this.sentToSlackMessages.add(formattedMessage);
+        // Clean up old entries (keep last 50)
+        if (this.sentToSlackMessages.size > 50) {
+          const firstMsg = this.sentToSlackMessages.values().next().value;
+          if (firstMsg) this.sentToSlackMessages.delete(firstMsg);
+        }
+
         this.stats.larkToSlack++;
         this.emitEvent('bridge:forward', {
           direction: 'lark-to-slack',
@@ -170,6 +197,12 @@ export class LarkSlackBridge extends EventEmitter {
   }
 
   private shouldForwardSlackMessage(message: SlackMessage): boolean {
+    // Skip messages that were sent from Lark (to prevent loops)
+    if (message.text && this.sentToSlackMessages.has(message.text)) {
+      this.log('info', `[shouldForwardSlackMessage] Skipping message sent from Lark: ${message.text.slice(0, 30)}...`);
+      return false;
+    }
+
     const filters = this.config.filters;
     if (!filters) return true;
 
@@ -268,17 +301,14 @@ export class LarkSlackBridge extends EventEmitter {
   }
 
   private formatLarkToSlack(message: LarkMessage): string {
-    const parts: string[] = [];
+    // Clean the content - remove @mentions like @_user_1
+    let cleanContent = message.content.replace(/@_user_\d+\s*/g, '').trim();
+    // Also remove @_all mentions
+    cleanContent = cleanContent.replace(/@_all\s*/g, '').trim();
 
-    if (message.senderName) {
-      parts.push(`*${message.senderName}* (from Lark):`);
-    } else {
-      parts.push('*(Lark)*:');
-    }
-
-    parts.push(message.content);
-
-    return parts.join(' ');
+    // Simple format - just the message content
+    // The sender info is not needed since we're sending as the user
+    return cleanContent || message.content;
   }
 
   private emitEvent<T>(type: BridgeEventType, data: T): void {

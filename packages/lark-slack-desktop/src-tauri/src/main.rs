@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader};
+use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
@@ -16,6 +17,28 @@ struct Config {
     slack_app_token: String,
     slack_signing_secret: String,
     lark_webhook_url: String,
+    // Lark App credentials for bidirectional communication
+    #[serde(default)]
+    lark_app_id: String,
+    #[serde(default)]
+    lark_app_secret: String,
+    // Slack User Token for sending as user
+    #[serde(default)]
+    slack_user_token: String,
+    // Default Slack channel for Lark→Slack
+    #[serde(default)]
+    default_slack_channel: String,
+    // Send as user instead of bot
+    #[serde(default)]
+    send_as_user: bool,
+    // Slack OAuth credentials (for multi-user auth)
+    #[serde(default)]
+    slack_client_id: String,
+    #[serde(default)]
+    slack_client_secret: String,
+    // Authenticated user info
+    #[serde(default)]
+    slack_user_name: String,
 }
 
 impl Default for Config {
@@ -25,6 +48,14 @@ impl Default for Config {
             slack_app_token: String::new(),
             slack_signing_secret: String::new(),
             lark_webhook_url: String::new(),
+            lark_app_id: String::new(),
+            lark_app_secret: String::new(),
+            slack_user_token: String::new(),
+            default_slack_channel: String::new(),
+            send_as_user: false,
+            slack_client_id: String::new(),
+            slack_client_secret: String::new(),
+            slack_user_name: String::new(),
         }
     }
 }
@@ -181,21 +212,55 @@ async fn start_bridge(app: AppHandle, state: State<'_, AppState>) -> Result<Brid
         return Err("Lark Webhook URLが設定されていません".to_string());
     }
 
-    // Find npx
-    let npx_path = find_npx_executable().ok_or("Node.js (npx) が見つかりません。Node.jsをインストールしてください。")?;
+    // Find node
+    let node_path = find_node_executable().ok_or("Node.js が見つかりません。Node.jsをインストールしてください。")?;
+
+    // Find the local CLI script
+    let exe_dir = std::env::current_exe()
+        .map_err(|e| format!("実行ファイルパス取得エラー: {}", e))?
+        .parent()
+        .ok_or("親ディレクトリが見つかりません")?
+        .to_path_buf();
+
+    // Try to find the connector CLI in various locations
+    let possible_paths = vec![
+        // Development: relative to Tauri target dir
+        exe_dir.join("../../../../lark-slack-connector/dist/cli/desktop.js"),
+        exe_dir.join("../../../lark-slack-connector/dist/cli/desktop.js"),
+        // Production: bundled with the app
+        exe_dir.join("../Resources/cli/desktop.js"),
+        // Monorepo structure
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../lark-slack-connector/dist/cli/desktop.js"),
+    ];
+
+    let cli_path = possible_paths
+        .iter()
+        .find(|p| p.exists())
+        .cloned()
+        .ok_or_else(|| {
+            format!(
+                "CLIスクリプトが見つかりません。lark-slack-connectorをビルドしてください。\n検索パス: {:?}",
+                possible_paths
+            )
+        })?;
 
     // Create config JSON for the bridge process
     let bridge_config = serde_json::json!({
         "slackBotToken": config.slack_bot_token,
         "slackAppToken": config.slack_app_token,
         "slackSigningSecret": config.slack_signing_secret,
+        "slackUserToken": config.slack_user_token,
         "larkWebhookUrl": config.lark_webhook_url,
+        "larkAppId": config.lark_app_id,
+        "larkAppSecret": config.lark_app_secret,
+        "defaultSlackChannel": config.default_slack_channel,
+        "sendAsUser": config.send_as_user,
         "serverPort": 3456
     });
 
-    // Spawn the bridge process
-    let mut child = Command::new(npx_path)
-        .arg("lark-slack-desktop")
+    // Spawn the bridge process using node directly
+    let mut child = Command::new(node_path)
+        .arg(cli_path)
         .arg(format!("--config={}", bridge_config.to_string()))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -344,6 +409,236 @@ fn check_node_installed() -> Result<String, String> {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SlackOAuthResponse {
+    ok: bool,
+    access_token: Option<String>,
+    authed_user: Option<AuthedUser>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AuthedUser {
+    id: String,
+    access_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SlackUserInfo {
+    ok: bool,
+    user: Option<SlackUser>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SlackUser {
+    id: String,
+    name: String,
+    real_name: Option<String>,
+}
+
+// Fixed port for OAuth callback (must match Slack Redirect URL setting)
+const OAUTH_CALLBACK_PORT: u16 = 9876;
+
+// ngrok URL for OAuth (HTTPS required by Slack)
+// Update this when ngrok restarts with a new URL
+const OAUTH_REDIRECT_HOST: &str = "https://mazelike-patti-nonglacially.ngrok-free.dev";
+
+// Embedded Slack OAuth credentials (set at build time via environment variables)
+// These are for the LarkInfo Slack App
+const EMBEDDED_CLIENT_ID: Option<&str> = option_env!("SLACK_CLIENT_ID");
+const EMBEDDED_CLIENT_SECRET: Option<&str> = option_env!("SLACK_CLIENT_SECRET");
+
+fn get_oauth_credentials(config: &Config) -> (String, String) {
+    // Priority: embedded (build-time) > config file
+    let client_id = EMBEDDED_CLIENT_ID
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| config.slack_client_id.clone());
+
+    let client_secret = EMBEDDED_CLIENT_SECRET
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| config.slack_client_secret.clone());
+
+    (client_id, client_secret)
+}
+
+/// Check if OAuth credentials are configured
+#[tauri::command]
+fn has_oauth_credentials(state: State<AppState>) -> bool {
+    let config = state.config.lock().unwrap();
+    let (client_id, client_secret) = get_oauth_credentials(&config);
+    !client_id.is_empty() && !client_secret.is_empty()
+}
+
+/// Start Slack OAuth flow - opens browser for user authorization
+#[tauri::command]
+async fn start_slack_oauth(state: State<'_, AppState>) -> Result<String, String> {
+    let config = state.config.lock().unwrap().clone();
+    let (client_id, _) = get_oauth_credentials(&config);
+
+    if client_id.is_empty() {
+        return Err("Slack認証情報が設定されていません。管理者に連絡してください。".to_string());
+    }
+
+    // Use ngrok URL for OAuth callback (HTTPS required by Slack)
+    let port = OAUTH_CALLBACK_PORT;
+    let redirect_uri = format!("{}/callback", OAUTH_REDIRECT_HOST);
+
+    // Build OAuth URL with user scopes
+    let oauth_url = format!(
+        "https://slack.com/oauth/v2/authorize?client_id={}&user_scope=chat:write&redirect_uri={}",
+        client_id,
+        urlencoding::encode(&redirect_uri)
+    );
+
+    // Open browser
+    if let Err(e) = open::that(&oauth_url) {
+        return Err(format!("ブラウザを開けませんでした: {}", e));
+    }
+
+    Ok(format!("{}|{}", port, redirect_uri))
+}
+
+/// Wait for OAuth callback and exchange code for token
+#[tauri::command]
+async fn complete_slack_oauth(
+    port: u16,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let config = state.config.lock().unwrap().clone();
+
+    // Start a simple HTTP server to receive the callback
+    let listener = TcpListener::bind(format!("localhost:{}", port))
+        .map_err(|e| format!("ポート {} でサーバーを起動できません: {}", port, e))?;
+
+    listener.set_nonblocking(false).ok();
+
+    // Wait for the callback (with timeout)
+    let (mut stream, _) = listener.accept()
+        .map_err(|e| format!("接続待機エラー: {}", e))?;
+
+    // Read the HTTP request
+    use std::io::Read;
+    let mut buffer = [0; 4096];
+    let n = stream.read(&mut buffer).map_err(|e| e.to_string())?;
+    let request = String::from_utf8_lossy(&buffer[..n]);
+
+    // Extract the authorization code from the URL
+    let code = request
+        .lines()
+        .next()
+        .and_then(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let path = parts[1];
+                if path.starts_with("/callback?") {
+                    let query = &path[10..]; // Remove "/callback?"
+                    for param in query.split('&') {
+                        if let Some(value) = param.strip_prefix("code=") {
+                            return Some(value.to_string());
+                        }
+                    }
+                }
+            }
+            None
+        })
+        .ok_or("認証コードが見つかりませんでした")?;
+
+    // Send a response to the browser
+    use std::io::Write;
+    let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
+        <!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>\
+        <h1>認証成功!</h1><p>このウィンドウを閉じてアプリに戻ってください。</p>\
+        <script>window.close();</script></body></html>";
+    stream.write_all(response.as_bytes()).ok();
+    drop(stream);
+
+    // Exchange the code for an access token
+    let redirect_uri = format!("{}/callback", OAUTH_REDIRECT_HOST);
+    let (client_id, client_secret) = get_oauth_credentials(&config);
+    let http_client = reqwest::Client::new();
+    let response = http_client
+        .post("https://slack.com/api/oauth.v2.access")
+        .form(&[
+            ("client_id", client_id.as_str()),
+            ("client_secret", client_secret.as_str()),
+            ("code", code.as_str()),
+            ("redirect_uri", redirect_uri.as_str()),
+        ])
+        .send()
+        .await
+        .map_err(|e| format!("トークン取得エラー: {}", e))?;
+
+    let oauth_response: SlackOAuthResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
+
+    if !oauth_response.ok {
+        return Err(format!(
+            "Slack認証エラー: {}",
+            oauth_response.error.unwrap_or_else(|| "不明なエラー".to_string())
+        ));
+    }
+
+    // Get the user token from authed_user
+    let user_token = oauth_response
+        .authed_user
+        .and_then(|u| u.access_token)
+        .ok_or("ユーザートークンが取得できませんでした")?;
+
+    // Get user info to display the name
+    let user_info_response = http_client
+        .get("https://slack.com/api/users.identity")
+        .header("Authorization", format!("Bearer {}", user_token))
+        .send()
+        .await
+        .ok();
+
+    let user_name = if let Some(resp) = user_info_response {
+        #[derive(Deserialize)]
+        struct IdentityResponse {
+            ok: bool,
+            user: Option<IdentityUser>,
+        }
+        #[derive(Deserialize)]
+        struct IdentityUser {
+            name: String,
+        }
+
+        resp.json::<IdentityResponse>()
+            .await
+            .ok()
+            .and_then(|r| if r.ok { r.user.map(|u| u.name) } else { None })
+            .unwrap_or_else(|| "認証済みユーザー".to_string())
+    } else {
+        "認証済みユーザー".to_string()
+    };
+
+    // Update config with the new token
+    {
+        let mut config = state.config.lock().unwrap();
+        config.slack_user_token = user_token.clone();
+        config.slack_user_name = user_name.clone();
+        config.send_as_user = true;
+
+        // Save config
+        if let Err(e) = save_config_to_file(&config, &state.config_path) {
+            eprintln!("設定保存エラー: {}", e);
+        }
+    }
+
+    // Emit event to update UI
+    let _ = app.emit_all("slack-oauth-complete", serde_json::json!({
+        "userName": user_name,
+        "success": true
+    }));
+
+    Ok(user_name)
+}
+
 fn main() {
     let config_path = get_config_path();
     let config = load_config(&config_path);
@@ -363,6 +658,9 @@ fn main() {
             stop_bridge,
             test_lark_webhook,
             check_node_installed,
+            has_oauth_credentials,
+            start_slack_oauth,
+            complete_slack_oauth,
         ])
         .on_window_event(|event| {
             if let tauri::WindowEvent::Destroyed = event.event() {
