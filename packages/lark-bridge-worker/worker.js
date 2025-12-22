@@ -329,6 +329,54 @@ function cleanLarkInternalMentions(text) {
 }
 
 /**
+ * Replace Lark internal mention format (@_user_1) with actual usernames (@田中)
+ * Uses the mentions array from the Lark message to map internal IDs to names
+ */
+function replaceLarkMentionsWithNames(text, mentions) {
+  if (!text || !mentions || !Array.isArray(mentions) || mentions.length === 0) {
+    return text;
+  }
+
+  let result = text;
+
+  for (const mention of mentions) {
+    // Lark mentions have a key like "@_user_1" and name/id info
+    const key = mention.key;
+    const name = mention.name;
+
+    if (key && name) {
+      // Skip bot mentions (like @Slack2Lark)
+      // Bot mentions typically don't need to be forwarded
+      const isBotMention = mention.id?.user_id === undefined && mention.id?.open_id === undefined;
+      if (isBotMention && mention.tenant_key) {
+        // This is likely an app/bot mention, remove it
+        result = result.replace(new RegExp(escapeRegExp(key), 'g'), '');
+        continue;
+      }
+
+      // Replace internal format with @username for Slack conversion
+      result = result.replace(new RegExp(escapeRegExp(key), 'g'), `@${name}`);
+      console.log(`Replaced Lark mention: ${key} -> @${name}`);
+    }
+  }
+
+  // Clean up any remaining internal mentions that weren't in the mentions array
+  result = result.replace(/@_\w+/g, '');
+
+  // Clean up multiple spaces
+  result = result.replace(/\s+/g, ' ').trim();
+
+  return result;
+}
+
+/**
+ * Escape special regex characters in a string
+ */
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Parse #channel specification from message
  * Returns { targetChannel, messageText } where targetChannel is the specified channel or null
  */
@@ -500,12 +548,30 @@ async function handleLarkMessage(event, env) {
     } catch (e) {
       text = message.content || '';
     }
+  } else if (messageType === 'post') {
+    // Rich text messages - extract text from the post structure
+    try {
+      const content = JSON.parse(message.content);
+      text = extractTextFromPost(content);
+    } catch (e) {
+      text = `[${messageType} message]`;
+    }
   } else {
     text = `[${messageType} message]`;
   }
 
-  // Clean up Lark internal @mentions (like @_user_1), but preserve user-facing @username
-  text = cleanLarkInternalMentions(text);
+  // Get mentions array from the message (Lark v2 format)
+  const mentions = message.mentions || [];
+  console.log('Message mentions:', JSON.stringify(mentions));
+
+  // Replace internal Lark mentions (@_user_1) with actual usernames (@高橋央)
+  // This uses the mentions array to map internal IDs to names
+  if (mentions.length > 0) {
+    text = replaceLarkMentionsWithNames(text, mentions);
+  } else {
+    // Fallback: clean up any internal mentions if no mentions array
+    text = cleanLarkInternalMentions(text);
+  }
 
   // Skip empty messages after cleanup
   if (!text) {
@@ -525,6 +591,34 @@ async function handleLarkMessage(event, env) {
 
   // Forward to Slack using the sender's token
   return forwardToSlack(text, larkUserId, larkOpenId, env);
+}
+
+/**
+ * Extract plain text from Lark rich text (post) format
+ */
+function extractTextFromPost(content) {
+  if (!content || !content.post) return '';
+
+  // Try different language keys (ja_jp, zh_cn, en_us, etc.)
+  const post = content.post.ja_jp || content.post.zh_cn || content.post.en_us || Object.values(content.post)[0];
+  if (!post || !post.content) return post?.title || '';
+
+  let texts = [];
+  if (post.title) texts.push(post.title);
+
+  // Extract text from content array
+  for (const line of post.content || []) {
+    for (const element of line || []) {
+      if (element.tag === 'text') {
+        texts.push(element.text || '');
+      } else if (element.tag === 'at') {
+        // @mentions in rich text
+        texts.push(element.user_name ? `@${element.user_name}` : '');
+      }
+    }
+  }
+
+  return texts.join(' ').trim();
 }
 
 /**

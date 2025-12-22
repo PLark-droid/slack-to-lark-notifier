@@ -14,6 +14,41 @@ function cleanLarkInternalMentions(text) {
   return cleaned;
 }
 
+// Escape special regex characters in a string
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Recreate replaceLarkMentionsWithNames for testing
+function replaceLarkMentionsWithNames(text, mentions) {
+  if (!text || !mentions || !Array.isArray(mentions) || mentions.length === 0) {
+    return text;
+  }
+
+  let result = text;
+
+  for (const mention of mentions) {
+    const key = mention.key;
+    const name = mention.name;
+
+    if (key && name) {
+      // Skip bot mentions
+      const isBotMention = mention.id?.user_id === undefined && mention.id?.open_id === undefined;
+      if (isBotMention && mention.tenant_key) {
+        result = result.replace(new RegExp(escapeRegExp(key), 'g'), '');
+        continue;
+      }
+
+      result = result.replace(new RegExp(escapeRegExp(key), 'g'), `@${name}`);
+    }
+  }
+
+  result = result.replace(/@_\w+/g, '');
+  result = result.replace(/\s+/g, ' ').trim();
+
+  return result;
+}
+
 // Recreate parseChannelSpecification for testing
 function parseChannelSpecification(text) {
   if (!text) return { targetChannel: null, messageText: '' };
@@ -138,5 +173,57 @@ describe('Mention transformation patterns', () => {
     const matches = [...text.matchAll(mentionPattern)];
     expect(matches.length).toBe(1);
     expect(matches[0][1]).toBe('example'); // Still matches @example part
+  });
+});
+
+describe('replaceLarkMentionsWithNames', () => {
+  it('should replace internal mention with actual username', () => {
+    const text = '@_user_1 確認お願いします';
+    const mentions = [
+      { key: '@_user_1', name: '高橋央', id: { user_id: 'u123', open_id: 'ou_xxx' } }
+    ];
+    expect(replaceLarkMentionsWithNames(text, mentions)).toBe('@高橋央 確認お願いします');
+  });
+
+  it('should handle multiple mentions', () => {
+    const text = '@_user_1 @_user_2 確認お願いします';
+    const mentions = [
+      { key: '@_user_1', name: '高橋央', id: { user_id: 'u123' } },
+      { key: '@_user_2', name: '田中', id: { user_id: 'u456' } }
+    ];
+    expect(replaceLarkMentionsWithNames(text, mentions)).toBe('@高橋央 @田中 確認お願いします');
+  });
+
+  it('should skip bot mentions with tenant_key', () => {
+    const text = '@_user_1 @_user_2 メッセージ';
+    const mentions = [
+      { key: '@_user_1', name: 'Slack2Lark', tenant_key: 'tenant123' }, // bot
+      { key: '@_user_2', name: '高橋央', id: { user_id: 'u123' } }
+    ];
+    expect(replaceLarkMentionsWithNames(text, mentions)).toBe('@高橋央 メッセージ');
+  });
+
+  it('should return original text if no mentions array', () => {
+    const text = '@matsui 確認';
+    expect(replaceLarkMentionsWithNames(text, null)).toBe('@matsui 確認');
+    expect(replaceLarkMentionsWithNames(text, [])).toBe('@matsui 確認');
+    expect(replaceLarkMentionsWithNames(text, undefined)).toBe('@matsui 確認');
+  });
+
+  it('should clean up remaining internal mentions not in array', () => {
+    const text = '@_user_1 @_user_99 メッセージ';
+    const mentions = [
+      { key: '@_user_1', name: '高橋央', id: { user_id: 'u123' } }
+    ];
+    expect(replaceLarkMentionsWithNames(text, mentions)).toBe('@高橋央 メッセージ');
+  });
+
+  it('should handle English and Japanese names', () => {
+    const text = '@_user_1 @_user_2 please review';
+    const mentions = [
+      { key: '@_user_1', name: 'John', id: { user_id: 'u123' } },
+      { key: '@_user_2', name: '鈴木', id: { user_id: 'u456' } }
+    ];
+    expect(replaceLarkMentionsWithNames(text, mentions)).toBe('@John @鈴木 please review');
   });
 });
