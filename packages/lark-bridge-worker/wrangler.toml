@@ -1,0 +1,19 @@
+# Cloudflare Worker configuration for Lark-Slack Bridge
+#
+# Setup instructions:
+# 1. Install wrangler: npm install -g wrangler
+# 2. Login: wrangler login
+# 3. Create KV namespace: wrangler kv:namespace create BRIDGE_CONFIG
+# 4. Update the kv_namespaces id below with the output from step 3
+# 5. Deploy: wrangler deploy
+
+name = "lark-slack-bridge"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# KV namespace for storing bridge configuration
+# After running: wrangler kv:namespace create BRIDGE_CONFIG
+# Replace <YOUR_KV_NAMESPACE_ID> with the actual ID
+[[kv_namespaces]]
+binding = "BRIDGE_CONFIG"
+id = "145f78a43639408996791d35c44fc6ca"
