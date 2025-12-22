@@ -58,6 +58,11 @@ export class SlackClient {
         return;
       }
 
+      // Ignore messages from bots (including our own bridge bot)
+      if ('bot_id' in message && message.bot_id) {
+        return;
+      }
+
       const slackMessage = await this.enrichMessage(message as { channel: string; user: string; text: string; ts: string; thread_ts?: string }, client);
 
       for (const handler of this.messageHandlers) {
