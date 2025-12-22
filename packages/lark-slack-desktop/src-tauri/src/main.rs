@@ -11,6 +11,56 @@ use tauri::{AppHandle, Manager, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct MuteTimeRange {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default = "default_start_hour")]
+    start_hour: u8,
+    #[serde(default)]
+    start_minute: u8,
+    #[serde(default = "default_end_hour")]
+    end_hour: u8,
+    #[serde(default)]
+    end_minute: u8,
+}
+
+fn default_start_hour() -> u8 { 22 }
+fn default_end_hour() -> u8 { 8 }
+
+impl Default for MuteTimeRange {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            start_hour: 22,
+            start_minute: 0,
+            end_hour: 8,
+            end_minute: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NotificationSettings {
+    #[serde(default = "default_true")]
+    sound_enabled: bool,
+    #[serde(default = "default_true")]
+    desktop_enabled: bool,
+}
+
+fn default_true() -> bool { true }
+
+impl Default for NotificationSettings {
+    fn default() -> Self {
+        Self {
+            sound_enabled: true,
+            desktop_enabled: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Config {
     slack_bot_token: String,
     slack_app_token: String,
@@ -28,6 +78,15 @@ struct Config {
     default_slack_channel: String,
     #[serde(default)]
     watch_channel_ids: Vec<String>,
+    // Notification filter settings
+    #[serde(default)]
+    mute_time_range: MuteTimeRange,
+    #[serde(default)]
+    exclude_keywords: Vec<String>,
+    #[serde(default)]
+    exclude_user_ids: Vec<String>,
+    #[serde(default)]
+    notification_settings: NotificationSettings,
 }
 
 impl Default for Config {
@@ -43,6 +102,10 @@ impl Default for Config {
             send_as_user: true,
             default_slack_channel: String::new(),
             watch_channel_ids: Vec::new(),
+            mute_time_range: MuteTimeRange::default(),
+            exclude_keywords: Vec::new(),
+            exclude_user_ids: Vec::new(),
+            notification_settings: NotificationSettings::default(),
         }
     }
 }
@@ -214,7 +277,21 @@ async fn start_bridge(app: AppHandle, state: State<'_, AppState>) -> Result<Brid
         "sendAsUser": config.send_as_user,
         "defaultSlackChannel": config.default_slack_channel,
         "watchChannelIds": config.watch_channel_ids,
-        "serverPort": 3456
+        "serverPort": 3456,
+        // Notification filter settings
+        "muteTimeRange": {
+            "enabled": config.mute_time_range.enabled,
+            "startHour": config.mute_time_range.start_hour,
+            "startMinute": config.mute_time_range.start_minute,
+            "endHour": config.mute_time_range.end_hour,
+            "endMinute": config.mute_time_range.end_minute
+        },
+        "excludeKeywords": config.exclude_keywords,
+        "excludeUserIds": config.exclude_user_ids,
+        "notificationSettings": {
+            "soundEnabled": config.notification_settings.sound_enabled,
+            "desktopEnabled": config.notification_settings.desktop_enabled
+        }
     });
 
     // Spawn the bridge process

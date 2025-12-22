@@ -13,6 +13,19 @@
 import { BridgeServer } from '../server';
 import { BridgeConfig, BridgeStatus } from '../types';
 
+interface MuteTimeRange {
+  enabled: boolean;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+}
+
+interface NotificationSettings {
+  soundEnabled: boolean;
+  desktopEnabled: boolean;
+}
+
 interface DesktopConfig {
   slackBotToken: string;
   slackAppToken: string;
@@ -27,6 +40,11 @@ interface DesktopConfig {
   defaultSlackChannel?: string; // Default channel for Lark→Slack
   // Channel filter settings (Slack → Lark)
   watchChannelIds?: string[]; // Only forward messages from these channels
+  // Notification filter settings
+  muteTimeRange?: MuteTimeRange;
+  excludeKeywords?: string[];
+  excludeUserIds?: string[];
+  notificationSettings?: NotificationSettings;
 }
 
 function sendStatus(status: BridgeStatus): void {
@@ -125,9 +143,14 @@ function createBridgeConfig(desktop: DesktopConfig): BridgeConfig {
       slackUserToken: desktop.slackUserToken,
     },
     // Channel filters (Slack → Lark)
-    filters: desktop.watchChannelIds && desktop.watchChannelIds.length > 0 ? {
-      includeChannels: desktop.watchChannelIds,
-    } : undefined,
+    filters: {
+      includeChannels: desktop.watchChannelIds && desktop.watchChannelIds.length > 0 ? desktop.watchChannelIds : undefined,
+      excludeKeywords: desktop.excludeKeywords,
+      excludeUserIds: desktop.excludeUserIds,
+      muteTimeRange: desktop.muteTimeRange,
+    },
+    // Notification settings
+    notificationSettings: desktop.notificationSettings,
     options: {
       includeChannelName: true,
       includeUserName: true,

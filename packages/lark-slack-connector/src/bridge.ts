@@ -161,6 +161,14 @@ export class LarkSlackBridge extends EventEmitter {
     const filters = this.config.filters;
     if (!filters) return true;
 
+    // Check mute time range
+    if (filters.muteTimeRange?.enabled) {
+      if (this.isInMuteTimeRange(filters.muteTimeRange)) {
+        this.log('debug', `Message filtered: currently in mute time range`);
+        return false;
+      }
+    }
+
     // Check channel inclusion
     if (filters.includeChannels?.length) {
       const included = filters.includeChannels.some(
@@ -187,6 +195,14 @@ export class LarkSlackBridge extends EventEmitter {
       if (filters.excludeUsers.includes(message.user)) return false;
     }
 
+    // Check exclude user IDs (additional filter)
+    if (filters.excludeUserIds?.length) {
+      if (filters.excludeUserIds.includes(message.user)) {
+        this.log('debug', `Message filtered: user ${message.user} is in exclude list`);
+        return false;
+      }
+    }
+
     // Check pattern inclusion
     if (filters.includePatterns?.length) {
       const matched = filters.includePatterns.some((pattern) =>
@@ -203,7 +219,40 @@ export class LarkSlackBridge extends EventEmitter {
       if (matched) return false;
     }
 
+    // Check exclude keywords
+    if (filters.excludeKeywords?.length) {
+      const text = message.text.toLowerCase();
+      const hasExcludedKeyword = filters.excludeKeywords.some(
+        (keyword) => text.includes(keyword.toLowerCase())
+      );
+      if (hasExcludedKeyword) {
+        this.log('debug', `Message filtered: contains excluded keyword`);
+        return false;
+      }
+    }
+
     return true;
+  }
+
+  private isInMuteTimeRange(muteRange: {
+    startHour: number;
+    startMinute: number;
+    endHour: number;
+    endMinute: number;
+  }): boolean {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMinutes = muteRange.startHour * 60 + muteRange.startMinute;
+    const endMinutes = muteRange.endHour * 60 + muteRange.endMinute;
+
+    // Handle overnight ranges (e.g., 22:00 - 08:00)
+    if (startMinutes > endMinutes) {
+      // Mute if current time is after start OR before end
+      return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+    } else {
+      // Normal range (e.g., 09:00 - 17:00)
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    }
   }
 
   private findChannelMapping(

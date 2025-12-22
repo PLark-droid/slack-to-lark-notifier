@@ -43,6 +43,25 @@ export const ChannelMappingSchema = z.object({
 
 export type ChannelMapping = z.infer<typeof ChannelMappingSchema>;
 
+// Mute Time Range (for time-based muting)
+export const MuteTimeRangeSchema = z.object({
+  enabled: z.boolean().default(false),
+  startHour: z.number().min(0).max(23).default(22),
+  startMinute: z.number().min(0).max(59).default(0),
+  endHour: z.number().min(0).max(23).default(8),
+  endMinute: z.number().min(0).max(59).default(0),
+});
+
+export type MuteTimeRange = z.infer<typeof MuteTimeRangeSchema>;
+
+// Notification Settings
+export const NotificationSettingsSchema = z.object({
+  soundEnabled: z.boolean().default(true),
+  desktopEnabled: z.boolean().default(true),
+});
+
+export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
+
 // Message Filter
 export const MessageFilterSchema = z.object({
   includeChannels: z.array(z.string()).optional(),
@@ -51,6 +70,10 @@ export const MessageFilterSchema = z.object({
   excludeUsers: z.array(z.string()).optional(),
   includePatterns: z.array(z.string()).optional(),
   excludePatterns: z.array(z.string()).optional(),
+  // Additional filters
+  excludeKeywords: z.array(z.string()).optional(),
+  excludeUserIds: z.array(z.string()).optional(),
+  muteTimeRange: MuteTimeRangeSchema.optional(),
 });
 
 export type MessageFilter = z.infer<typeof MessageFilterSchema>;
@@ -74,6 +97,9 @@ export const BridgeConfigSchema = z.object({
 
   // Message filters
   filters: MessageFilterSchema.optional(),
+
+  // Notification settings
+  notificationSettings: NotificationSettingsSchema.optional(),
 
   // Bridge options
   options: z.object({

@@ -24,6 +24,19 @@ interface SlackChannel {
   num_members: number;
 }
 
+interface MuteTimeRange {
+  enabled: boolean;
+  startHour: number; // 0-23
+  startMinute: number; // 0-59
+  endHour: number; // 0-23
+  endMinute: number; // 0-59
+}
+
+interface NotificationSettings {
+  soundEnabled: boolean;
+  desktopEnabled: boolean;
+}
+
 interface Config {
   slackBotToken: string;
   slackAppToken: string;
@@ -37,6 +50,11 @@ interface Config {
   defaultSlackChannel: string;
   // Channel filter settings (Slack → Lark)
   watchChannelIds: string[];
+  // Notification filter settings
+  muteTimeRange: MuteTimeRange;
+  excludeKeywords: string[];
+  excludeUserIds: string[];
+  notificationSettings: NotificationSettings;
 }
 
 // Tauri invoke wrapper - lazy loaded on first use
@@ -89,6 +107,19 @@ function App() {
     sendAsUser: true,
     defaultSlackChannel: '',
     watchChannelIds: [],
+    muteTimeRange: {
+      enabled: false,
+      startHour: 22,
+      startMinute: 0,
+      endHour: 8,
+      endMinute: 0,
+    },
+    excludeKeywords: [],
+    excludeUserIds: [],
+    notificationSettings: {
+      soundEnabled: true,
+      desktopEnabled: true,
+    },
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -618,6 +649,130 @@ function App() {
                     </div>
                   </>
                 )}
+              </div>
+
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ fontSize: 13, marginBottom: 12, color: 'var(--accent)' }}>
+                  🔕 通知フィルタリング設定
+                </h3>
+
+                {/* 時間帯ミュート */}
+                <div className="form-group">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="checkbox"
+                      id="muteEnabled"
+                      checked={config.muteTimeRange?.enabled ?? false}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        muteTimeRange: { ...prev.muteTimeRange, enabled: e.target.checked }
+                      }))}
+                    />
+                    <label htmlFor="muteEnabled" style={{ fontSize: 12 }}>
+                      時間帯別ミュートを有効にする
+                    </label>
+                  </div>
+                  {config.muteTimeRange?.enabled && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24 }}>
+                      <select
+                        className="form-input"
+                        style={{ width: 70 }}
+                        value={config.muteTimeRange?.startHour ?? 22}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          muteTimeRange: { ...prev.muteTimeRange, startHour: parseInt(e.target.value) }
+                        }))}
+                      >
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: 12 }}>〜</span>
+                      <select
+                        className="form-input"
+                        style={{ width: 70 }}
+                        value={config.muteTimeRange?.endHour ?? 8}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          muteTimeRange: { ...prev.muteTimeRange, endHour: parseInt(e.target.value) }
+                        }))}
+                      >
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>は通知しない</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* キーワード除外 */}
+                <div className="form-group">
+                  <label className="form-label">除外キーワード（カンマ区切り）</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="bot, 自動投稿, reminder"
+                    value={(config.excludeKeywords || []).join(', ')}
+                    onChange={(e) => setConfig(prev => ({
+                      ...prev,
+                      excludeKeywords: e.target.value.split(',').map(k => k.trim()).filter(k => k)
+                    }))}
+                  />
+                  <small style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+                    これらのキーワードを含むメッセージはLarkに通知されません
+                  </small>
+                </div>
+
+                {/* ユーザー除外 */}
+                <div className="form-group">
+                  <label className="form-label">除外ユーザーID（カンマ区切り）</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="U01234567, U98765432"
+                    value={(config.excludeUserIds || []).join(', ')}
+                    onChange={(e) => setConfig(prev => ({
+                      ...prev,
+                      excludeUserIds: e.target.value.split(',').map(u => u.trim()).filter(u => u)
+                    }))}
+                  />
+                  <small style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+                    これらのユーザーからのメッセージはLarkに通知されません
+                  </small>
+                </div>
+
+                {/* デスクトップ通知設定 */}
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      id="desktopEnabled"
+                      checked={config.notificationSettings?.desktopEnabled ?? true}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        notificationSettings: { ...prev.notificationSettings, desktopEnabled: e.target.checked }
+                      }))}
+                    />
+                    <label htmlFor="desktopEnabled" style={{ fontSize: 12 }}>
+                      デスクトップ通知を表示
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      id="soundEnabled"
+                      checked={config.notificationSettings?.soundEnabled ?? true}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        notificationSettings: { ...prev.notificationSettings, soundEnabled: e.target.checked }
+                      }))}
+                    />
+                    <label htmlFor="soundEnabled" style={{ fontSize: 12 }}>
+                      通知音を再生
+                    </label>
+                  </div>
+                </div>
               </div>
 
               <div style={{ marginTop: 20, padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8 }}>
