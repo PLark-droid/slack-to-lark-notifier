@@ -17,6 +17,13 @@ interface LogEntry {
   type: 'info' | 'success' | 'error';
 }
 
+interface SlackChannel {
+  id: string;
+  name: string;
+  is_private: boolean;
+  num_members: number;
+}
+
 interface Config {
   slackBotToken: string;
   slackAppToken: string;
@@ -28,6 +35,8 @@ interface Config {
   // Bidirectional settings
   sendAsUser: boolean;
   defaultSlackChannel: string;
+  // Channel filter settings (Slack → Lark)
+  watchChannelIds: string[];
 }
 
 // Tauri invoke wrapper - lazy loaded on first use
@@ -79,10 +88,13 @@ function App() {
     larkAppSecret: '',
     sendAsUser: true,
     defaultSlackChannel: '',
+    watchChannelIds: [],
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [nodeStatus, setNodeStatus] = useState<'checking' | 'installed' | 'missing'>('checking');
+  const [availableChannels, setAvailableChannels] = useState<SlackChannel[]>([]);
+  const [isLoadingChannels, setIsLoadingChannels] = useState(false);
   const configLoaded = useRef(false);
   const unlistenRefs = useRef<Array<() => void>>([]);
 
@@ -225,6 +237,54 @@ function App() {
     } finally {
       setIsTesting(false);
     }
+  };
+
+  const handleFetchChannels = async () => {
+    if (!config.slackBotToken && !config.slackUserToken) {
+      addLog('Bot TokenまたはUser Tokenを入力してください', 'error');
+      return;
+    }
+    setIsLoadingChannels(true);
+    try {
+      // User Tokenがあれば優先（Slack Connectチャンネルも取得可能）
+      const channels = await invoke<SlackChannel[]>('fetch_slack_channels', {
+        botToken: config.slackBotToken,
+        userToken: config.slackUserToken || null,
+      });
+      const sortedChannels = channels.sort((a, b) => a.name.localeCompare(b.name));
+      setAvailableChannels(sortedChannels);
+      addLog(`${sortedChannels.length}件のチャンネルを取得しました`, 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addLog(`チャンネル取得失敗: ${errorMessage}`, 'error');
+    } finally {
+      setIsLoadingChannels(false);
+    }
+  };
+
+  const handleToggleChannel = (channelId: string) => {
+    setConfig(prev => {
+      const current = prev.watchChannelIds || [];
+      if (current.includes(channelId)) {
+        return { ...prev, watchChannelIds: current.filter(id => id !== channelId) };
+      } else {
+        return { ...prev, watchChannelIds: [...current, channelId] };
+      }
+    });
+  };
+
+  const handleSelectAllChannels = () => {
+    setConfig(prev => ({
+      ...prev,
+      watchChannelIds: availableChannels.map(ch => ch.id),
+    }));
+  };
+
+  const handleDeselectAllChannels = () => {
+    setConfig(prev => ({
+      ...prev,
+      watchChannelIds: [],
+    }));
   };
 
   const getConnectionStatus = () => {
@@ -484,6 +544,80 @@ function App() {
                     ユーザーアカウント（松井大樹）として送信
                   </label>
                 </div>
+              </div>
+
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ fontSize: 13, marginBottom: 12, color: 'var(--accent)' }}>
+                  📺 Slack→Lark 通知チャンネル選択
+                </h3>
+                <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                  選択したチャンネルのメッセージのみLarkに通知されます。未選択の場合は全チャンネル。
+                </p>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleFetchChannels}
+                  disabled={isLoadingChannels || !config.slackBotToken}
+                  style={{ marginBottom: 12 }}
+                >
+                  {isLoadingChannels ? '取得中...' : '🔄 チャンネル一覧を取得'}
+                </button>
+
+                {availableChannels.length > 0 && (
+                  <>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={handleSelectAllChannels}
+                        style={{ fontSize: 11, padding: '4px 8px' }}
+                      >
+                        全選択
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={handleDeselectAllChannels}
+                        style={{ fontSize: 11, padding: '4px 8px' }}
+                      >
+                        全解除
+                      </button>
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)', alignSelf: 'center' }}>
+                        {(config.watchChannelIds || []).length}/{availableChannels.length} 選択中
+                      </span>
+                    </div>
+                    <div style={{
+                      maxHeight: 200,
+                      overflowY: 'auto',
+                      border: '1px solid var(--border)',
+                      borderRadius: 8,
+                      padding: 8,
+                      background: 'var(--bg-secondary)'
+                    }}>
+                      {availableChannels.map(channel => (
+                        <label
+                          key={channel.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '6px 8px',
+                            cursor: 'pointer',
+                            borderRadius: 4,
+                            fontSize: 12,
+                          }}
+                          className="channel-item"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={(config.watchChannelIds || []).includes(channel.id)}
+                            onChange={() => handleToggleChannel(channel.id)}
+                          />
+                          <span style={{ flex: 1 }}>
+                            {channel.is_private ? '🔒' : '#'} {channel.name}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div style={{ marginTop: 20, padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8 }}>

@@ -25,6 +25,8 @@ interface DesktopConfig {
   // Bidirectional settings
   sendAsUser?: boolean; // Send messages as user instead of bot
   defaultSlackChannel?: string; // Default channel for Lark→Slack
+  // Channel filter settings (Slack → Lark)
+  watchChannelIds?: string[]; // Only forward messages from these channels
 }
 
 function sendStatus(status: BridgeStatus): void {
@@ -122,6 +124,10 @@ function createBridgeConfig(desktop: DesktopConfig): BridgeConfig {
       sendAsUser: desktop.sendAsUser ?? true, // Default to sending as user
       slackUserToken: desktop.slackUserToken,
     },
+    // Channel filters (Slack → Lark)
+    filters: desktop.watchChannelIds && desktop.watchChannelIds.length > 0 ? {
+      includeChannels: desktop.watchChannelIds,
+    } : undefined,
     options: {
       includeChannelName: true,
       includeUserName: true,

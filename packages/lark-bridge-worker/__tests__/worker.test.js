@@ -32,9 +32,9 @@ function replaceLarkMentionsWithNames(text, mentions) {
     const name = mention.name;
 
     if (key && name) {
-      // Skip bot mentions
-      const isBotMention = mention.id?.user_id === undefined && mention.id?.open_id === undefined;
-      if (isBotMention && mention.tenant_key) {
+      // Skip bot/app mentions (empty or missing user_id)
+      const hasUserId = mention.id?.user_id && mention.id.user_id !== '';
+      if (!hasUserId) {
         result = result.replace(new RegExp(escapeRegExp(key), 'g'), '');
         continue;
       }
@@ -194,10 +194,19 @@ describe('replaceLarkMentionsWithNames', () => {
     expect(replaceLarkMentionsWithNames(text, mentions)).toBe('@高橋央 @田中 確認お願いします');
   });
 
-  it('should skip bot mentions with tenant_key', () => {
+  it('should skip bot mentions with empty user_id', () => {
     const text = '@_user_1 @_user_2 メッセージ';
     const mentions = [
-      { key: '@_user_1', name: 'Slack2Lark', tenant_key: 'tenant123' }, // bot
+      { key: '@_user_1', name: 'Slack2Lark', id: { user_id: '', open_id: 'ou_xxx' } }, // bot (empty user_id)
+      { key: '@_user_2', name: '高橋央', id: { user_id: 'u123' } }
+    ];
+    expect(replaceLarkMentionsWithNames(text, mentions)).toBe('@高橋央 メッセージ');
+  });
+
+  it('should skip bot mentions with no id object', () => {
+    const text = '@_user_1 @_user_2 メッセージ';
+    const mentions = [
+      { key: '@_user_1', name: 'Slack2Lark' }, // bot (no id)
       { key: '@_user_2', name: '高橋央', id: { user_id: 'u123' } }
     ];
     expect(replaceLarkMentionsWithNames(text, mentions)).toBe('@高橋央 メッセージ');

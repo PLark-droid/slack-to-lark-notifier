@@ -15,7 +15,19 @@ struct Config {
     slack_bot_token: String,
     slack_app_token: String,
     slack_signing_secret: String,
+    #[serde(default)]
+    slack_user_token: String,
     lark_webhook_url: String,
+    #[serde(default)]
+    lark_app_id: String,
+    #[serde(default)]
+    lark_app_secret: String,
+    #[serde(default)]
+    send_as_user: bool,
+    #[serde(default)]
+    default_slack_channel: String,
+    #[serde(default)]
+    watch_channel_ids: Vec<String>,
 }
 
 impl Default for Config {
@@ -24,7 +36,13 @@ impl Default for Config {
             slack_bot_token: String::new(),
             slack_app_token: String::new(),
             slack_signing_secret: String::new(),
+            slack_user_token: String::new(),
             lark_webhook_url: String::new(),
+            lark_app_id: String::new(),
+            lark_app_secret: String::new(),
+            send_as_user: true,
+            default_slack_channel: String::new(),
+            watch_channel_ids: Vec::new(),
         }
     }
 }
@@ -189,7 +207,13 @@ async fn start_bridge(app: AppHandle, state: State<'_, AppState>) -> Result<Brid
         "slackBotToken": config.slack_bot_token,
         "slackAppToken": config.slack_app_token,
         "slackSigningSecret": config.slack_signing_secret,
+        "slackUserToken": config.slack_user_token,
         "larkWebhookUrl": config.lark_webhook_url,
+        "larkAppId": config.lark_app_id,
+        "larkAppSecret": config.lark_app_secret,
+        "sendAsUser": config.send_as_user,
+        "defaultSlackChannel": config.default_slack_channel,
+        "watchChannelIds": config.watch_channel_ids,
         "serverPort": 3456
     });
 
@@ -344,6 +368,62 @@ fn check_node_installed() -> Result<String, String> {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SlackChannel {
+    id: String,
+    name: String,
+    is_private: bool,
+    num_members: u32,
+}
+
+#[tauri::command(rename_all = "camelCase")]
+async fn fetch_slack_channels(bot_token: String, user_token: Option<String>) -> Result<Vec<SlackChannel>, String> {
+    // Use user_token if available (can see Slack Connect channels), otherwise use bot_token
+    let token = user_token.filter(|t| !t.is_empty()).unwrap_or(bot_token);
+
+    if token.is_empty() {
+        return Err("Tokenが空です".to_string());
+    }
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://slack.com/api/conversations.list")
+        .query(&[("types", "public_channel,private_channel"), ("limit", "1000"), ("exclude_archived", "true")])
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| format!("リクエストエラー: {}", e))?;
+
+    let data: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("JSONパースエラー: {}", e))?;
+
+    if !data.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+        let error = data.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+        return Err(format!("Slack APIエラー: {}", error));
+    }
+
+    let channels: Vec<SlackChannel> = data
+        .get("channels")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter(|ch| !ch.get("is_archived").and_then(|v| v.as_bool()).unwrap_or(false))
+                .map(|ch| SlackChannel {
+                    id: ch.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    name: ch.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    is_private: ch.get("is_private").and_then(|v| v.as_bool()).unwrap_or(false),
+                    num_members: ch.get("num_members").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(channels)
+}
+
 fn main() {
     let config_path = get_config_path();
     let config = load_config(&config_path);
@@ -363,6 +443,7 @@ fn main() {
             stop_bridge,
             test_lark_webhook,
             check_node_installed,
+            fetch_slack_channels,
         ])
         .on_window_event(|event| {
             if let tauri::WindowEvent::Destroyed = event.event() {

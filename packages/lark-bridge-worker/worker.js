@@ -71,6 +71,12 @@ export default {
       return handleLarkOAuthRetrieve(state, env);
     }
 
+    // List available Slack channels for a user
+    if (url.pathname === '/channels' && request.method === 'GET') {
+      const larkId = url.searchParams.get('lark_id');
+      return handleListChannels(larkId, env);
+    }
+
     // Config endpoint (for default channel setting)
     if (url.pathname === '/config') {
       if (request.method === 'POST') {
@@ -281,9 +287,22 @@ async function handleLarkWebhook(request, env) {
  */
 async function handleLarkEvent(body, env) {
   const eventType = body.header.event_type;
+  const eventId = body.header.event_id;
   const event = body.event;
 
-  console.log('Event type:', eventType);
+  console.log('Event type:', eventType, 'Event ID:', eventId);
+
+  // Deduplicate events (Lark may retry if response is slow)
+  if (eventId) {
+    const dedupKey = `event:${eventId}`;
+    const existing = await env.BRIDGE_CONFIG.get(dedupKey);
+    if (existing) {
+      console.log(`Duplicate event detected, skipping: ${eventId}`);
+      return jsonResponse({ ok: true, deduplicated: true });
+    }
+    // Mark event as processed (TTL: 5 minutes)
+    await env.BRIDGE_CONFIG.put(dedupKey, '1', { expirationTtl: 300 });
+  }
 
   // Handle message events
   if (eventType === 'im.message.receive_v1') {
@@ -345,11 +364,12 @@ function replaceLarkMentionsWithNames(text, mentions) {
     const name = mention.name;
 
     if (key && name) {
-      // Skip bot mentions (like @Slack2Lark)
-      // Bot mentions typically don't need to be forwarded
-      const isBotMention = mention.id?.user_id === undefined && mention.id?.open_id === undefined;
-      if (isBotMention && mention.tenant_key) {
+      // Skip bot/app mentions (like @Slack2Lark)
+      // Bot mentions have empty or missing user_id
+      const hasUserId = mention.id?.user_id && mention.id.user_id !== '';
+      if (!hasUserId) {
         // This is likely an app/bot mention, remove it
+        console.log(`Removing bot mention: ${key} (${name})`);
         result = result.replace(new RegExp(escapeRegExp(key), 'g'), '');
         continue;
       }
@@ -767,6 +787,67 @@ async function handleCheckSentMessage(channel, ts, env) {
     channel,
     ts,
   });
+}
+
+/**
+ * List available Slack channels for a user
+ */
+async function handleListChannels(larkId, env) {
+  // Get user mapping to find their Slack token
+  let slackToken = null;
+
+  if (larkId) {
+    const userMapping = await getUserMapping(larkId, env);
+    if (userMapping) {
+      slackToken = userMapping.slack_token;
+    }
+  }
+
+  // Fallback to default token
+  if (!slackToken) {
+    slackToken = await env.BRIDGE_CONFIG.get('default_slack_token');
+  }
+
+  if (!slackToken) {
+    return jsonResponse({ error: 'No Slack token available. Please provide lark_id or configure default token.' }, 400);
+  }
+
+  try {
+    const response = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel&limit=1000', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${slackToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const result = await response.json();
+    if (!result.ok) {
+      return jsonResponse({ error: result.error }, 500);
+    }
+
+    // Filter and format channels
+    const channels = (result.channels || [])
+      .filter(ch => !ch.is_archived)
+      .map(ch => ({
+        name: ch.name,
+        id: ch.id,
+        is_private: ch.is_private || false,
+        is_member: ch.is_member || false,
+        num_members: ch.num_members || 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return jsonResponse({
+      channels,
+      count: channels.length,
+      usage: 'Larkメッセージで #channel名 を先頭に付けると指定チャンネルに送信できます',
+      example: '#general こんにちは',
+    });
+  } catch (e) {
+    console.error('Failed to fetch channels:', e);
+    return jsonResponse({ error: 'Failed to fetch channels' }, 500);
+  }
 }
 
 /**
