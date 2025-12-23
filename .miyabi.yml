@@ -74,7 +74,7 @@ ci:
   build: true
 
 cd:
-  platform: firebase
+  platform: cloudflare-workers
   auto_deploy: false
   environments:
     - staging
